@@ -8,7 +8,7 @@
   var TOAST_MS = 1600;
   var HOLD_MS = 4000;
   var HYSTERESIS = 1.20;
-  var SLOT_COUNT = 2;
+  var SLOT_COUNT = 1;
 
   var mutedHex = {};
   var slotState = { hex: [null, null], seatedAt: [0, 0] };
@@ -186,8 +186,10 @@
 
   function seatedHexes() {
     var out = [];
-    if (slotState.hex[0]) out.push(slotState.hex[0]);
-    if (slotState.hex[1]) out.push(slotState.hex[1]);
+    var i;
+    for (i = 0; i < SLOT_COUNT; i++) {
+      if (slotState.hex[i]) out.push(slotState.hex[i]);
+    }
     return out;
   }
 
@@ -291,7 +293,7 @@
       var prev0 = next.hex[0];
       var prev0At = next.seatedAt[0];
       seatAt(next, 0, emer.hex, nowMs);
-      if (prev0 && prev0 !== emer.hex && byHex[prev0]) {
+      if (SLOT_COUNT > 1 && prev0 && prev0 !== emer.hex && byHex[prev0]) {
         seatAt(next, 1, prev0, prev0At);
       }
     }
@@ -440,7 +442,7 @@
     if (state.screen === "home") {
       var hexes = seatedHexes();
       var n = hexes.length;
-      if (n === 0) {
+      if (n <= 1) {
         cycleHomePage(delta);
         return;
       }
@@ -525,7 +527,7 @@
       return;
     }
     if (seatedHexes().length) {
-      byId("hint").textContent = "Turn to switch · Click to open · Back to dismiss";
+      byId("hint").textContent = "Click to open · Back to dismiss · Turn for usage";
       return;
     }
     if (state.homePage === "limits") {
@@ -612,7 +614,6 @@
 
   function paintHome() {
     paintBannerSlot(0);
-    paintBannerSlot(1);
     paintUsageCards();
     if (state.homePage !== "limits" && !state.usageHistory) {
       var viz = byId("usage-viz");
