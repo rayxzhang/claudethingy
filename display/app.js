@@ -6,15 +6,12 @@
   var HOME_PAGES = ["hours", "days", "weeks", "limits"];
   var INPUT_ARM_MS = 160;
   var TOAST_MS = 1600;
-  var ALERT_LINGER_MS = 25000;
-  var MAX_VISIBLE_ALERTS = 2;
+  var HOLD_MS = 4000;
+  var HYSTERESIS = 1.20;
+  var SLOT_COUNT = 2;
 
-  var presentByHex = {};
-  var alertsByHex = {};
-  var arrivalQueue = [];
-  var visibleHexes = [];
-  var lingerTimerByHex = {};
-  var slotHex = [null, null];
+  var mutedHex = {};
+  var slotState = { hex: [null, null], seatedAt: [0, 0] };
 
   var state = {
     screen: "home",
@@ -51,15 +48,6 @@
     return Object.prototype.hasOwnProperty.call(obj, key);
   }
 
-  function removeHex(list, hex) {
-    var next = [];
-    var i;
-    for (i = 0; i < list.length; i++) {
-      if (list[i] !== hex) next.push(list[i]);
-    }
-    return next;
-  }
-
   function armInput() {
     state.inputArmedAt = Date.now() + INPUT_ARM_MS;
   }
@@ -72,46 +60,58 @@
     return (n < 10 ? "0" : "") + n;
   }
 
-  function formatAlt(ft) {
-    if (ft == null) return "—";
-    if (ft >= 1000) return Math.round(ft / 100) / 10 + "k ft";
-    return ft + " ft";
-  }
-
-  function formatEta(min) {
-    if (min == null) return "—";
-    if (min <= 0) return "now";
-    if (min < 60) return min + " min";
-    return Math.floor(min / 60) + "h " + (min % 60) + "m";
-  }
-
-  function formatRoute(route) {
-    if (!route) return "Route pending";
-    var from = route.originCity || route.origin || "?";
-    var to = route.destinationCity || route.destination || "?";
-    return from + " → " + to;
-  }
-
-  function formatDetailRoute(route) {
-    if (!route) return "Route pending";
-    var from = route.origin;
-    var to = route.destination;
-    if (!from && !to) return "Route pending";
-    return (from || "?") + " → " + (to || "?");
-  }
-
-  function formatDetailAlt(ft) {
-    if (ft == null) return "—";
-    var n = Math.round(ft);
+  function formatGrouped(n) {
     var sign = n < 0 ? "-" : "";
-    var s = String(Math.abs(n));
+    var s = String(Math.abs(Math.round(n)));
     var out = "";
     var i;
     for (i = 0; i < s.length; i++) {
       if (i > 0 && (s.length - i) % 3 === 0) out += ",";
       out += s.charAt(i);
     }
-    return sign + out + " ft";
+    return sign + out;
+  }
+
+  function formatNm(nm) {
+    if (nm == null || !isFinite(nm)) return "—";
+    return String(Math.round(nm * 10) / 10);
+  }
+
+  function formatVs(v) {
+    if (v == null || !isFinite(v)) return "—";
+    if (Math.abs(v) < 64) return "0";
+    var n = Math.round(v);
+    var body = formatGrouped(Math.abs(n));
+    if (n > 0) return "+" + body;
+    if (n < 0) return "-" + body;
+    return "0";
+  }
+
+  function formatNamedRoute(route) {
+    if (!route) return "Route pending";
+    var from = route.originName || route.originCity || route.origin || "?";
+    var to = route.destinationName || route.destinationCity || route.destination || "?";
+    return from + " → " + to;
+  }
+
+  function formatDetailRoute(route) {
+    if (!route) return "Route pending";
+    var from = route.originName || route.origin;
+    var to = route.destinationName || route.destination;
+    if (!from && !to) return "Route pending";
+    return (from || "?") + " → " + (to || "?");
+  }
+
+  function formatDetailAlt(ft) {
+    if (ft == null) return "—";
+    return formatGrouped(ft) + " ft";
+  }
+
+  function formatAltMetric(altFt, navAltFt) {
+    var base = formatDetailAlt(altFt);
+    if (altFt == null || navAltFt == null) return base;
+    if (Math.abs(navAltFt - altFt) < 200) return base;
+    return base + " → " + formatGrouped(navAltFt);
   }
 
   function formatReset(iso) {
@@ -134,8 +134,35 @@
     return "";
   }
 
+  function isEmergency(plane) {
+    if (!plane) return false;
+    if (plane.emergency) return true;
+    var sq = String(plane.squawk || "");
+    return sq === "7500" || sq === "7600" || sq === "7700";
+  }
+
   function bannerSub(plane) {
-    return (plane.typeName || plane.typeCode || "Aircraft") + " · " + formatRoute(plane.route);
+    return (plane.typeName || plane.typeCode || "Aircraft") + " · " + formatNamedRoute(plane.route);
+  }
+
+  function bannerRight(plane) {
+    if (isEmergency(plane)) return plane.squawk || plane.emergency || "EMER";
+    if (plane.distanceNm == null || !isFinite(plane.distanceNm)) return "—";
+    return formatNm(plane.distanceNm) + " nm";
+  }
+
+  function formatKicker(plane) {
+    var type = plane.typeName || plane.typeCode || "Aircraft";
+    var reg = plane.registration || "";
+    var line = type;
+    if (reg && reg !== plane.callsign) line += " · " + reg;
+    if (isEmergency(plane)) {
+      var tag = plane.squawk === "7500" || plane.squawk === "7600" || plane.squawk === "7700"
+        ? plane.squawk
+        : (plane.emergency || plane.squawk);
+      if (tag) line = tag + " · " + line;
+    }
+    return line;
   }
 
   function parseAircraftList(raw) {
@@ -165,135 +192,187 @@
     };
   }
 
-  function cancelLinger(hex) {
-    var rec = alertsByHex[hex];
-    if (rec) rec.generation += 1;
-    if (lingerTimerByHex[hex]) {
-      clearTimeout(lingerTimerByHex[hex]);
-      lingerTimerByHex[hex] = 0;
-    }
-  }
-
-  function pauseVisibleLingering() {
+  function findPlane(hex) {
+    var list = state.snapshotAircraft || [];
     var i;
-    for (i = 0; i < visibleHexes.length; i++) {
-      cancelLinger(visibleHexes[i]);
+    if (!hex) return null;
+    for (i = 0; i < list.length; i++) {
+      if (list[i].hex === hex) return list[i];
     }
+    return null;
   }
 
-  function armLinger(hex) {
-    var rec = alertsByHex[hex];
-    if (!rec || rec.phase !== "visible") return;
-    cancelLinger(hex);
-    rec.generation += 1;
-    var gen = rec.generation;
-    var remaining = rec.expiresAt - Date.now();
-    if (remaining <= 0) {
-      closeAlert(hex);
-      return;
-    }
-    lingerTimerByHex[hex] = setTimeout(function () {
-      var current = alertsByHex[hex];
-      if (!current || current.generation !== gen) return;
-      closeAlert(hex);
-      paintHome();
-    }, remaining);
+  function seatedHexes() {
+    var out = [];
+    if (slotState.hex[0]) out.push(slotState.hex[0]);
+    if (slotState.hex[1]) out.push(slotState.hex[1]);
+    return out;
   }
 
-  function rearmVisibleLingering() {
-    var hexes = visibleHexes.slice();
+  function emptySlots() {
+    return { hex: [null, null], seatedAt: [0, 0] };
+  }
+
+  function copySlots(prev) {
+    var p = prev || emptySlots();
+    return {
+      hex: [p.hex[0] || null, p.hex[1] || null],
+      seatedAt: [p.seatedAt[0] || 0, p.seatedAt[1] || 0]
+    };
+  }
+
+  function indexByHex(planes) {
+    var map = {};
     var i;
-    for (i = 0; i < hexes.length; i++) {
-      if (alertsByHex[hexes[i]] && alertsByHex[hexes[i]].phase === "visible") {
-        armLinger(hexes[i]);
+    for (i = 0; i < planes.length; i++) {
+      if (planes[i] && planes[i].hex) map[planes[i].hex] = planes[i];
+    }
+    return map;
+  }
+
+  function sortRanked(planes) {
+    var ranked = planes.slice();
+    ranked.sort(function (a, b) {
+      var ae = isEmergency(a) ? 1 : 0;
+      var be = isEmergency(b) ? 1 : 0;
+      if (ae !== be) return be - ae;
+      var as = typeof a.score === "number" ? a.score : 0;
+      var bs = typeof b.score === "number" ? b.score : 0;
+      if (as !== bs) return bs - as;
+      return 0;
+    });
+    return ranked;
+  }
+
+  function seatedSet(slots) {
+    var s = {};
+    if (slots.hex[0]) s[slots.hex[0]] = true;
+    if (slots.hex[1]) s[slots.hex[1]] = true;
+    return s;
+  }
+
+  function firstChallenger(ranked, occupied) {
+    var i, p;
+    for (i = 0; i < ranked.length; i++) {
+      p = ranked[i];
+      if (p && p.hex && !occupied[p.hex]) return p;
+    }
+    return null;
+  }
+
+  function firstEmergency(ranked) {
+    var i;
+    for (i = 0; i < ranked.length; i++) {
+      if (isEmergency(ranked[i])) return ranked[i];
+    }
+    return null;
+  }
+
+  function seatAt(slots, i, hex, nowMs) {
+    var j;
+    for (j = 0; j < SLOT_COUNT; j++) {
+      if (j !== i && slots.hex[j] === hex) {
+        slots.hex[j] = null;
+        slots.seatedAt[j] = 0;
       }
     }
+    slots.hex[i] = hex;
+    slots.seatedAt[i] = nowMs;
   }
 
-  function promoteAlert(hex) {
-    var rec = alertsByHex[hex];
-    if (!rec || rec.phase !== "queued") return;
-    if (visibleHexes.length >= MAX_VISIBLE_ALERTS) return;
-    arrivalQueue = removeHex(arrivalQueue, hex);
-    rec.phase = "visible";
-    rec.expiresAt = Date.now() + ALERT_LINGER_MS;
-    visibleHexes.push(hex);
-    if (!state.focusedAlertHex) state.focusedAlertHex = hex;
-    if (state.screen === "home") armLinger(hex);
-  }
-
-  function fillVisible() {
-    while (visibleHexes.length < MAX_VISIBLE_ALERTS && arrivalQueue.length) {
-      promoteAlert(arrivalQueue[0]);
+  function compactLeft(slots) {
+    if (!slots.hex[0] && slots.hex[1]) {
+      slots.hex[0] = slots.hex[1];
+      slots.seatedAt[0] = slots.seatedAt[1];
+      slots.hex[1] = null;
+      slots.seatedAt[1] = 0;
     }
   }
 
-  function closeAlert(hex) {
-    var rec = alertsByHex[hex];
-    if (!rec) return;
-    cancelLinger(hex);
-    delete alertsByHex[hex];
-    arrivalQueue = removeHex(arrivalQueue, hex);
-    visibleHexes = removeHex(visibleHexes, hex);
-    if (state.focusedAlertHex === hex) {
-      state.focusedAlertHex = visibleHexes[0] || null;
+  function pickLiveSlots(planes, prev, nowMs) {
+    var byHex = indexByHex(planes);
+    var ranked = sortRanked(planes);
+    var next = copySlots(prev);
+    var i, h, occupant, challenger, occupied, emer, held;
+
+    for (i = 0; i < SLOT_COUNT; i++) {
+      h = next.hex[i];
+      if (h && !byHex[h]) {
+        next.hex[i] = null;
+        next.seatedAt[i] = 0;
+      }
     }
-    if (state.detailHex === hex) {
-      state.detailHex = null;
-      state.detailAircraft = null;
+    compactLeft(next);
+
+    emer = firstEmergency(ranked);
+    if (emer && next.hex[0] !== emer.hex) {
+      var prev0 = next.hex[0];
+      var prev0At = next.seatedAt[0];
+      seatAt(next, 0, emer.hex, nowMs);
+      if (prev0 && prev0 !== emer.hex && byHex[prev0]) {
+        seatAt(next, 1, prev0, prev0At);
+      }
     }
-    fillVisible();
+
+    for (i = 0; i < SLOT_COUNT; i++) {
+      h = next.hex[i];
+      occupant = h ? byHex[h] : null;
+      held = occupant && (nowMs - next.seatedAt[i] < HOLD_MS);
+      if (held) continue;
+      occupied = seatedSet(next);
+      if (occupant) delete occupied[occupant.hex];
+      if (i === 1 && next.hex[0]) occupied[next.hex[0]] = true;
+      challenger = firstChallenger(ranked, occupied);
+      if (!occupant) {
+        if (challenger) seatAt(next, i, challenger.hex, nowMs);
+        continue;
+      }
+      if (challenger && (challenger.score || 0) > (occupant.score || 0) * HYSTERESIS) {
+        seatAt(next, i, challenger.hex, nowMs);
+      }
+    }
+
+    compactLeft(next);
+    occupied = seatedSet(next);
+    for (i = 0; i < SLOT_COUNT; i++) {
+      if (next.hex[i]) continue;
+      challenger = firstChallenger(ranked, occupied);
+      if (!challenger) break;
+      seatAt(next, i, challenger.hex, nowMs);
+      occupied[challenger.hex] = true;
+    }
+    compactLeft(next);
+    return next;
+  }
+
+  function followFocus() {
+    var a = slotState.hex[0];
+    var b = slotState.hex[1];
+    if (state.focusedAlertHex === a || state.focusedAlertHex === b) return;
+    state.focusedAlertHex = a || b || null;
   }
 
   function ingestAircraft(planes) {
     state.snapshotAircraft = planes;
     var incoming = {};
-    var i, plane, hex, rec, departed;
+    var i, plane, hex;
     for (i = 0; i < planes.length; i++) {
       plane = planes[i];
       incoming[plane.hex] = plane;
     }
-
-    departed = [];
-    for (hex in presentByHex) {
-      if (!hasOwn(presentByHex, hex)) continue;
-      if (!hasOwn(incoming, hex)) departed.push(hex);
+    for (hex in mutedHex) {
+      if (!hasOwn(mutedHex, hex)) continue;
+      if (!hasOwn(incoming, hex)) delete mutedHex[hex];
     }
-    for (i = 0; i < departed.length; i++) {
-      hex = departed[i];
-      delete presentByHex[hex];
-      rec = alertsByHex[hex];
-      if (!rec) continue;
-      if (state.screen === "detail" && state.detailHex === hex) continue;
-      closeAlert(hex);
+    var live = [];
+    for (i = 0; i < planes.length; i++) {
+      if (!mutedHex[planes[i].hex]) live.push(planes[i]);
     }
-
-    for (hex in incoming) {
-      if (!hasOwn(incoming, hex)) continue;
-      plane = incoming[hex];
-      rec = alertsByHex[hex];
-      if (rec) {
-        rec.aircraft = plane;
-        presentByHex[hex] = plane;
-        if (state.detailHex === hex) state.detailAircraft = plane;
-        continue;
-      }
-      if (hasOwn(presentByHex, hex)) {
-        presentByHex[hex] = plane;
-        continue;
-      }
-      presentByHex[hex] = plane;
-      alertsByHex[hex] = {
-        hex: hex,
-        aircraft: plane,
-        phase: "queued",
-        generation: 0,
-        expiresAt: 0,
-      };
-      arrivalQueue.push(hex);
+    slotState = pickLiveSlots(live, slotState, Date.now());
+    followFocus();
+    if (state.detailHex && incoming[state.detailHex]) {
+      state.detailAircraft = incoming[state.detailHex];
     }
-
-    fillVisible();
   }
 
   function homeClass() {
@@ -354,33 +433,31 @@
   function activate() {
     if (state.screen !== "home") return;
     if (!state.focusedAlertHex) return;
-    var rec = alertsByHex[state.focusedAlertHex];
-    if (!rec) return;
-    state.detailHex = rec.hex;
-    state.detailAircraft = rec.aircraft;
-    pauseVisibleLingering();
+    var plane = findPlane(state.focusedAlertHex);
+    if (!plane) return;
+    state.detailHex = plane.hex;
+    state.detailAircraft = plane;
     setScreen("detail");
     paintDetail();
   }
 
   function goBack() {
     if (state.screen === "detail") {
-      var hex = state.detailHex;
       setScreen("home");
-      if (hex && !hasOwn(presentByHex, hex)) closeAlert(hex);
-      rearmVisibleLingering();
       paintHome();
       return;
     }
     if (state.screen === "home" && state.focusedAlertHex) {
-      closeAlert(state.focusedAlertHex);
+      mutedHex[state.focusedAlertHex] = true;
+      ingestAircraft(state.snapshotAircraft);
       paintHome();
     }
   }
 
   function moveFocus(delta) {
     if (state.screen === "home") {
-      var n = visibleHexes.length;
+      var hexes = seatedHexes();
+      var n = hexes.length;
       if (n === 0) {
         cycleHomePage(delta);
         return;
@@ -388,13 +465,13 @@
       var idx = 0;
       var i;
       for (i = 0; i < n; i++) {
-        if (visibleHexes[i] === state.focusedAlertHex) {
+        if (hexes[i] === state.focusedAlertHex) {
           idx = i;
           break;
         }
       }
       idx = (idx + (delta % n) + n) % n;
-      state.focusedAlertHex = visibleHexes[idx];
+      state.focusedAlertHex = hexes[idx];
       paintHome();
       return;
     }
@@ -423,7 +500,7 @@
     if (!plane) return;
     state.detailHex = plane.hex;
     state.detailAircraft = plane;
-    if (visibleHexes.indexOf(plane.hex) !== -1) {
+    if (seatedHexes().indexOf(plane.hex) !== -1) {
       state.focusedAlertHex = plane.hex;
     }
     paintDetail();
@@ -465,7 +542,7 @@
       byId("hint").textContent = "Back dismisses";
       return;
     }
-    if (visibleHexes.length) {
+    if (seatedHexes().length) {
       byId("hint").textContent = "Turn to switch · Click to open · Back to dismiss";
       return;
     }
@@ -476,29 +553,16 @@
     byId("hint").textContent = "Turn for Today, 7 days, 12 weeks, limits";
   }
 
-  function bindSlots() {
-    var i, hex, s;
-    for (s = 0; s < MAX_VISIBLE_ALERTS; s++) {
-      if (slotHex[s] && visibleHexes.indexOf(slotHex[s]) === -1) slotHex[s] = null;
-    }
-    for (i = 0; i < visibleHexes.length; i++) {
-      hex = visibleHexes[i];
-      if (slotHex[0] === hex || slotHex[1] === hex) continue;
-      if (!slotHex[0]) slotHex[0] = hex;
-      else if (!slotHex[1]) slotHex[1] = hex;
-    }
-  }
-
   function paintBannerSlot(slot) {
-    var hex = slotHex[slot];
+    var hex = slotState.hex[slot];
     var el = byId("alert-" + slot);
-    var rec = hex ? alertsByHex[hex] : null;
-    var plane = rec ? rec.aircraft : null;
+    var plane = hex ? findPlane(hex) : null;
     var prev = el.getAttribute("data-hex") || "";
+    var cls;
     if (plane) {
       byId("alert-" + slot + "-callsign").textContent = plane.callsign || plane.hex;
       byId("alert-" + slot + "-sub").textContent = bannerSub(plane);
-      byId("alert-" + slot + "-eta").textContent = formatEta(plane.etaMin);
+      byId("alert-" + slot + "-eta").textContent = bannerRight(plane);
     }
     if (prev !== (hex || "")) {
       el.className = "alert-banner";
@@ -509,7 +573,10 @@
       el.className = "alert-banner";
       return;
     }
-    el.className = "alert-banner is-open" + (hex === state.focusedAlertHex ? " is-focus" : "");
+    cls = "alert-banner is-open";
+    if (hex === state.focusedAlertHex) cls += " is-focus";
+    if (isEmergency(plane)) cls += " is-emer";
+    el.className = cls;
   }
 
   function paintUsageCard(cardId, percentId, barId, resetId, bucket, paintedKey) {
@@ -546,7 +613,6 @@
   }
 
   function paintHome() {
-    bindSlots();
     paintBannerSlot(0);
     paintBannerSlot(1);
     paintUsageCards();
@@ -621,12 +687,12 @@
   function paintDetail() {
     var plane = state.detailAircraft;
     byId("detail-callsign").textContent = plane ? plane.callsign : "—";
-    byId("detail-type").textContent = plane ? (plane.typeName || plane.typeCode || "Aircraft") : "No aircraft selected";
+    byId("detail-type").textContent = plane ? formatKicker(plane) : "No aircraft selected";
     byId("detail-route").textContent = plane ? formatDetailRoute(plane.route) : "Route pending";
-    byId("detail-alt").textContent = plane ? formatDetailAlt(plane.altFt) : "—";
+    byId("detail-alt").textContent = plane ? formatAltMetric(plane.altFt, plane.navAltFt) : "—";
     byId("detail-speed").textContent = plane && plane.gsKts != null ? plane.gsKts + " kt" : "—";
     byId("detail-distance").textContent = plane && plane.distanceNm != null ? plane.distanceNm + " nm" : "—";
-    byId("detail-eta").textContent = plane ? formatEta(plane.etaMin) : "—";
+    byId("detail-vrate").textContent = plane ? formatVs(plane.vRateFpm) : "—";
     byId("detail-vs").textContent = "Traffic vs " + (plane && plane.callsign ? plane.callsign : "—");
     if (window.RadarViz) RadarViz.paint(buildRadarScene());
     paintHint();
