@@ -14,27 +14,12 @@ function envNumber(name) {
   return Number.isFinite(n) ? n : null;
 }
 
-function envList(name) {
-  const raw = process.env[name];
-  if (!raw) return [];
-  return String(raw)
-    .split(",")
-    .map((part) => part.trim().toUpperCase())
-    .filter(Boolean);
-}
-
 const OFFICE = {
   lat: envNumber("OFFICE_LAT"),
   lon: envNumber("OFFICE_LON"),
   radiusNm: envNumber("OFFICE_RADIUS_NM") ?? 7,
   label: process.env.OFFICE_LABEL || "Office",
 };
-
-const EXCLUDE_NEAR = {
-  lat: envNumber("EXCLUDE_NEAR_LAT"),
-  lon: envNumber("EXCLUDE_NEAR_LON"),
-};
-const EXCLUDE_DEST = new Set(envList("EXCLUDE_DEST"));
 
 const CATEGORY_LABEL = {
   A0: "Unknown",
@@ -85,12 +70,6 @@ function trimCallsign(value) {
   return value.trim();
 }
 
-function angleDiff(a, b) {
-  let diff = Math.abs(a - b) % 360;
-  if (diff > 180) diff = 360 - diff;
-  return diff;
-}
-
 function haversineNm(lat1, lon1, lat2, lon2) {
   const toRad = (d) => (d * Math.PI) / 180;
   const φ1 = toRad(lat1);
@@ -126,15 +105,6 @@ function parseRadarAirports() {
   return out;
 }
 
-function nearerExclude(ac) {
-  if (EXCLUDE_NEAR.lat == null || EXCLUDE_NEAR.lon == null) return false;
-  if (ac.lat == null || ac.lon == null) return false;
-  if (OFFICE.lat == null || OFFICE.lon == null) return false;
-  const toOffice = haversineNm(ac.lat, ac.lon, OFFICE.lat, OFFICE.lon);
-  const toOther = haversineNm(ac.lat, ac.lon, EXCLUDE_NEAR.lat, EXCLUDE_NEAR.lon);
-  return toOther + 1.5 < toOffice;
-}
-
 function bearingFrom(lat1, lon1, lat2, lon2) {
   const toRad = (d) => (d * Math.PI) / 180;
   const toDeg = (r) => (r * 180) / Math.PI;
@@ -156,32 +126,24 @@ function categoryLabel(code) {
   return CATEGORY_LABEL[code] ?? code;
 }
 
-function isApproaching(ac) {
+function distanceNm(ac) {
+  if (typeof ac.dst === "number") return ac.dst;
+  if (
+    OFFICE.lat != null &&
+    OFFICE.lon != null &&
+    typeof ac.lat === "number" &&
+    typeof ac.lon === "number"
+  ) {
+    return haversineNm(ac.lat, ac.lon, OFFICE.lat, OFFICE.lon);
+  }
+  return Infinity;
+}
+
+function isInView(ac) {
   if (OFFICE.lat == null || OFFICE.lon == null) return false;
   if (ac.lat == null || ac.lon == null) return false;
   if (ac.alt_baro === "ground") return false;
-
-  const alt = typeof ac.alt_baro === "number" ? ac.alt_baro : null;
-  const gs = typeof ac.gs === "number" ? ac.gs : 0;
-  if (gs < 70) return false;
-  if (alt != null && alt > 10000) return false;
-  if (nearerExclude(ac)) return false;
-
-  const dist = typeof ac.dst === "number" ? ac.dst : null;
-  if (dist == null || dist > OFFICE.radiusNm) return false;
-
-  const toward = bearingFrom(ac.lat, ac.lon, OFFICE.lat, OFFICE.lon);
-  const trackDiff = typeof ac.track === "number" ? angleDiff(ac.track, toward) : 180;
-  const descending = typeof ac.baro_rate === "number" && ac.baro_rate < -128;
-  const low = alt != null && alt <= 6000;
-
-  return trackDiff <= 50 || (low && descending && trackDiff <= 90);
-}
-
-function isExcludedDest(route) {
-  if (!route || EXCLUDE_DEST.size === 0) return false;
-  const dest = String(route.destination || "").toUpperCase();
-  return EXCLUDE_DEST.has(dest);
+  return distanceNm(ac) <= OFFICE.radiusNm;
 }
 
 function etaMinutes(distNm, gsKts) {
@@ -189,21 +151,8 @@ function etaMinutes(distNm, gsKts) {
   return Math.round((distNm / gsKts) * 60);
 }
 
-function approachScore(ac) {
-  const dist = typeof ac.dst === "number" ? ac.dst : OFFICE.radiusNm;
-  const alt = typeof ac.alt_baro === "number" ? ac.alt_baro : 15000;
-  const gs = typeof ac.gs === "number" ? ac.gs : 0;
-  const vRate = typeof ac.baro_rate === "number" ? ac.baro_rate : 0;
-  const toward = bearingFrom(ac.lat, ac.lon, OFFICE.lat, OFFICE.lon);
-  const trackDiff = typeof ac.track === "number" ? angleDiff(ac.track, toward) : 90;
-
-  let score = 1000 - dist * 40;
-  score -= alt / 40;
-  score -= trackDiff * 2;
-  if (vRate < -256) score += 120;
-  else if (vRate < 0) score += 60;
-  if (gs > 120) score += 20;
-  return score;
+function viewScore(ac) {
+  return 1000 - distanceNm(ac) * 40;
 }
 
 function normalizeAircraft(raw, route) {
@@ -241,7 +190,7 @@ function normalizeAircraft(raw, route) {
     navHeadingDeg: typeof raw.nav_heading === "number" ? Math.round(raw.nav_heading) : null,
     emergency: raw.emergency && raw.emergency !== "none" ? raw.emergency : "",
     route: route ?? null,
-    score: approachScore(raw),
+    score: viewScore(raw),
   };
 }
 
@@ -338,10 +287,10 @@ export async function getFlightsSnapshot(force = false) {
 
   try {
     const rawList = await fetchPoint();
-    const approaching = rawList.filter(isApproaching);
-    approaching.sort((a, b) => approachScore(b) - approachScore(a));
+    const inView = rawList.filter(isInView);
+    inView.sort((a, b) => viewScore(b) - viewScore(a));
 
-    const top = approaching.slice(0, 6);
+    const top = inView.slice(0, 16);
     await fetchRoutes(
       top.map((ac) => ({
         callsign: trimCallsign(ac.flight) || ac.r,
@@ -350,13 +299,10 @@ export async function getFlightsSnapshot(force = false) {
       })),
     );
 
-    const aircraft = top
-      .map((ac) => {
-        const callsign = trimCallsign(ac.flight) || ac.r || ac.hex?.toUpperCase();
-        return normalizeAircraft(ac, routeForCallsign(callsign));
-      })
-      .filter((plane) => !isExcludedDest(plane.route))
-      .slice(0, 4);
+    const aircraft = top.map((ac) => {
+      const callsign = trimCallsign(ac.flight) || ac.r || ac.hex?.toUpperCase();
+      return normalizeAircraft(ac, routeForCallsign(callsign));
+    });
 
     cache = {
       data: {
@@ -364,7 +310,7 @@ export async function getFlightsSnapshot(force = false) {
         airports: parseRadarAirports(),
         aircraft,
         totalSeen: rawList.length,
-        approachingCount: approaching.length,
+        inViewCount: inView.length,
       },
       error: null,
       fetchedAt: Date.now(),

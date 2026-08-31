@@ -4,6 +4,7 @@ carthingy_repo_root() {
   cd "$(dirname "${BASH_SOURCE[1]:-${BASH_SOURCE[0]}}")/.." && pwd
 }
 
+# After sourcing conf, fill TZ from the Mac if still empty.
 carthingy_load_config() {
   local repo_root="$1"
   export CARTHINGY_PORT="${CARTHINGY_PORT:-8787}"
@@ -22,11 +23,50 @@ carthingy_load_config() {
   export HOTKEY_4="${HOTKEY_4:-Safari|open -a Safari}"
   export CLAUDE_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-}"
   export CLAUDE_PROJECTS_DIR="${CLAUDE_PROJECTS_DIR:-}"
-  export CARTHINGY_TZ="${CARTHINGY_TZ:-}"
   export RADAR_AIRPORTS="${RADAR_AIRPORTS:-}"
   export EXCLUDE_NEAR_LAT="${EXCLUDE_NEAR_LAT:-}"
   export EXCLUDE_NEAR_LON="${EXCLUDE_NEAR_LON:-}"
   export EXCLUDE_DEST="${EXCLUDE_DEST:-}"
+  if [[ -z "${CARTHINGY_TZ:-}" || "${CARTHINGY_TZ}" == "UTC" ]]; then
+    CARTHINGY_TZ="$(carthingy_detect_tz || true)"
+  fi
+  export CARTHINGY_TZ="${CARTHINGY_TZ:-}"
+}
+
+carthingy_node_dir() {
+  local bin
+  bin="$(command -v node 2>/dev/null || true)"
+  if [[ -n "$bin" ]]; then
+    dirname "$bin"
+    return
+  fi
+  if [[ -x /opt/homebrew/bin/node ]]; then
+    echo /opt/homebrew/bin
+    return
+  fi
+  if [[ -x /usr/local/bin/node ]]; then
+    echo /usr/local/bin
+    return
+  fi
+}
+
+carthingy_detect_tz() {
+  if [[ -n "${CARTHINGY_TZ:-}" && "${CARTHINGY_TZ}" != "UTC" ]]; then
+    printf '%s\n' "$CARTHINGY_TZ"
+    return
+  fi
+  local nodedir tz
+  nodedir="$(carthingy_node_dir)"
+  if [[ -n "$nodedir" && -x "$nodedir/node" ]]; then
+    tz="$("$nodedir/node" -e 'process.stdout.write(Intl.DateTimeFormat().resolvedOptions().timeZone || "")' 2>/dev/null || true)"
+    if [[ -n "$tz" && "$tz" != "UTC" ]]; then
+      printf '%s\n' "$tz"
+      return
+    fi
+  fi
+  if [[ -L /etc/localtime ]]; then
+    readlink /etc/localtime | sed -n 's|.*/zoneinfo/||p'
+  fi
 }
 
 carthingy_adb_serial() {

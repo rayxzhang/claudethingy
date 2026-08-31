@@ -1,21 +1,42 @@
 import fs from "node:fs";
 
 function zoneFromLocaltime() {
-  try {
-    const target = fs.readlinkSync("/etc/localtime");
-    const marker = "zoneinfo/";
-    const i = target.lastIndexOf(marker);
-    if (i >= 0) return target.slice(i + marker.length);
-  } catch {
-    /* copied file, not a symlink */
+  const paths = ["/etc/localtime", "/var/db/timezone/localtime"];
+  for (let i = 0; i < paths.length; i++) {
+    const p = paths[i];
+    try {
+      const target = fs.readlinkSync(p);
+      const zone = zoneFromPath(target);
+      if (zone) return zone;
+    } catch {
+      /* not a symlink */
+    }
+    try {
+      const real = fs.realpathSync(p);
+      const zone = zoneFromPath(real);
+      if (zone) return zone;
+    } catch {
+      /* missing */
+    }
   }
+  return null;
+}
+
+function zoneFromPath(target) {
+  const marker = "zoneinfo/";
+  const i = String(target || "").lastIndexOf(marker);
+  if (i >= 0) return target.slice(i + marker.length);
   return null;
 }
 
 export function hostTimeZone() {
   const explicit = process.env.CARTHINGY_TZ;
+  if (explicit && explicit !== "UTC") return explicit;
+  const fromDisk = zoneFromLocaltime();
+  if (fromDisk) return fromDisk;
   if (explicit) return explicit;
-  return zoneFromLocaltime() || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  const intl = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return intl || "UTC";
 }
 
 function pad2(n) {

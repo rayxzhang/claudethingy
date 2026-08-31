@@ -205,6 +205,28 @@ function dayOrEmpty(iso, days) {
   };
 }
 
+function newestFiles(files) {
+  const ranked = [];
+  for (let i = 0; i < files.length; i++) {
+    let mtime = 0;
+    try {
+      mtime = fs.statSync(files[i]).mtimeMs;
+    } catch {
+      continue;
+    }
+    ranked.push({ path: files[i], mtime });
+  }
+  ranked.sort((a, b) => b.mtime - a.mtime);
+  const out = [];
+  for (let i = 0; i < ranked.length && i < 5; i++) {
+    out.push({
+      name: path.basename(ranked[i].path),
+      mtime: new Date(ranked[i].mtime).toISOString(),
+    });
+  }
+  return out;
+}
+
 export async function getUsageHistory() {
   await ensureCatalog();
   const timeZone = hostTimeZone();
@@ -270,6 +292,8 @@ export async function getUsageHistory() {
       files: files.length,
       messages: folded,
       pricing: catalogStatus(),
+      todayHours: Object.keys(bucket.hours).filter((k) => k.indexOf(todayIso + "|") === 0),
+      newest: newestFiles(files),
     },
   };
 }

@@ -35,9 +35,6 @@ adb_reverse() {
 start_host() {
   local serial="${1:-}"
   if host_running; then
-    if [[ -n "$serial" ]]; then
-      adb_reverse "$serial"
-    fi
     return 0
   fi
 
@@ -52,7 +49,15 @@ start_host() {
 
   carthingy_ensure_kiosk "$REPO_ROOT"
 
+  local node_dir
+  node_dir="$(carthingy_node_dir || true)"
+  local path_prefix=""
+  if [[ -n "$node_dir" ]]; then
+    path_prefix="${node_dir}:"
+  fi
+
   nohup env \
+    PATH="${path_prefix}/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin" \
     CARTHINGY_PORT="$PORT" \
     OFFICE_LAT="$OFFICE_LAT" \
     OFFICE_LON="$OFFICE_LON" \
@@ -76,21 +81,11 @@ start_host() {
   echo $! >"$PID_FILE"
 
   nohup env \
+    PATH="${path_prefix}/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin" \
     CAR_THING_ADB="$ADB_BIN" \
     CAR_THING_SERIAL="$serial" \
     node "$REPO_ROOT/host/rotary-bridge.mjs" >>"$LOG_FILE" 2>&1 &
   echo $! >"$RUN_DIR/rotary.pid"
-
-  (
-    while host_running; do
-      serial="$(carthingy_adb_serial "$ADB_BIN")"
-      if [[ -n "$serial" ]]; then
-        adb_reverse "$serial"
-      fi
-      sleep 30
-    done
-  ) &
-  echo $! >"$RUN_DIR/reverse.pid"
 
   carthingy_log "host started (pid $(cat "$PID_FILE"), device $serial, port $PORT)"
 }
@@ -113,6 +108,7 @@ stop_host() {
 
 case "${1:-}" in
   start) start_host "${2:-}" ;;
+  reverse) adb_reverse "${2:-}" ;;
   stop) stop_host ;;
   status)
     if host_running; then
@@ -122,7 +118,7 @@ case "${1:-}" in
     fi
     ;;
   *)
-    echo "Usage: $0 {start|stop|status} [serial]" >&2
+    echo "Usage: $0 {start|stop|status|reverse} [serial]" >&2
     exit 2
     ;;
 esac

@@ -69,6 +69,10 @@ env \
   HOTKEY_2="$HOTKEY_2" \
   HOTKEY_3="$HOTKEY_3" \
   HOTKEY_4="$HOTKEY_4" \
+  CLAUDE_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-}" \
+  CLAUDE_PROJECTS_DIR="${CLAUDE_PROJECTS_DIR:-}" \
+  CARTHINGY_TZ="${CARTHINGY_TZ:-}" \
+  RADAR_AIRPORTS="${RADAR_AIRPORTS:-}" \
   node "$REPO_ROOT/host/server.mjs" &
 SERVER_PID=$!
 
@@ -80,17 +84,8 @@ ROTARY_PID=$!
 
 cleanup() {
   kill "$SERVER_PID" 2>/dev/null || true
-  kill "$REVERSE_PID" 2>/dev/null || true
   kill "$ROTARY_PID" 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
-
-(
-  while true; do
-    adb_reverse
-    sleep 30
-  done
-) &
-REVERSE_PID=$!
 
 wait "$SERVER_PID"
