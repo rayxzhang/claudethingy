@@ -1,0 +1,6 @@
+node_modules/
+carthingy.conf
+.carthingy/
+.flash/
+.DS_Store
+*.log

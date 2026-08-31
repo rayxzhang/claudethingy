@@ -1,0 +1,17 @@
+CAR_THING_ADB=/opt/homebrew/bin/adb
+CAR_THING_SERIAL=YOUR_SERIAL
+CARTHINGY_PORT=8787
+
+OFFICE_LAT=
+OFFICE_LON=
+OFFICE_RADIUS_NM=7
+OFFICE_LABEL="Office"
+# Optional: drop traffic closer to another airport than to you
+# EXCLUDE_NEAR_LAT=
+# EXCLUDE_NEAR_LON=
+# EXCLUDE_DEST=
+
+HOTKEY_1="Calendar|open -a Calendar"
+HOTKEY_2="Mail|open -a Mail"
+HOTKEY_3="Slack|open -a Slack"
+HOTKEY_4="Safari|open -a Safari"

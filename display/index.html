@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=800, height=480, initial-scale=1">
+  <title>carthingy</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="toast" class="toast"></div>
+  <main class="screen">
+    <header class="mast">
+      <div>
+        <div id="office-label" class="eyebrow">Office</div>
+        <h1 id="screen-title" class="headline">carthingy</h1>
+      </div>
+      <div class="clocks">
+        <time id="clock-local" class="clock clock-local"></time>
+        <time id="clock-utc" class="clock clock-utc"></time>
+      </div>
+    </header>
+
+    <section id="screen-home" class="panel panel-active">
+      <div id="alert-overlay" class="alert-overlay" aria-live="polite">
+        <article id="alert-0" class="alert-banner">
+          <div class="alert-main">
+            <div id="alert-0-callsign" class="alert-callsign">—</div>
+            <div id="alert-0-sub" class="alert-sub">—</div>
+          </div>
+          <div id="alert-0-eta" class="alert-eta">—</div>
+        </article>
+        <article id="alert-1" class="alert-banner">
+          <div class="alert-main">
+            <div id="alert-1-callsign" class="alert-callsign">—</div>
+            <div id="alert-1-sub" class="alert-sub">—</div>
+          </div>
+          <div id="alert-1-eta" class="alert-eta">—</div>
+        </article>
+      </div>
+      <div class="home-stage">
+      <div id="usage-viz" class="usage-viz"></div>
+      <div class="usage-grid">
+        <article class="usage-card" id="session-card">
+          <div class="usage-label">5 hour</div>
+          <div class="usage-num">
+            <span id="session-percent">--</span><span class="usage-suffix">%</span>
+          </div>
+          <div class="bar-track"><div id="session-bar" class="bar-fill"></div></div>
+          <div id="session-reset" class="usage-reset">No data</div>
+        </article>
+        <article class="usage-card" id="weekly-card">
+          <div class="usage-label">Weekly</div>
+          <div class="usage-num">
+            <span id="weekly-percent">--</span><span class="usage-suffix">%</span>
+          </div>
+          <div class="bar-track"><div id="weekly-bar" class="bar-fill"></div></div>
+          <div id="weekly-reset" class="usage-reset">No data</div>
+        </article>
+      </div>
+      </div>
+    </section>
+
+    <section id="screen-detail" class="panel">
+      <div class="hero">
+        <div id="detail-callsign" class="hero-callsign">—</div>
+        <div id="detail-type" class="hero-kicker">—</div>
+        <div id="detail-route" class="hero-route">—</div>
+        <div class="metrics">
+          <div class="metric">
+            <div class="metric-label">Alt</div>
+            <div id="detail-alt" class="metric-value">—</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Speed</div>
+            <div id="detail-speed" class="metric-value">—</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Dist</div>
+            <div id="detail-distance" class="metric-value">—</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">ETA</div>
+            <div id="detail-eta" class="metric-value">—</div>
+          </div>
+        </div>
+      </div>
+      <div class="caption-group">
+        <div id="extra-title" class="caption-title">Details</div>
+        <div id="extra-body" class="caption-body">Turn for more</div>
+      </div>
+    </section>
+
+    <footer class="dock">
+      <div id="hotkey-bar" class="hotkeys"></div>
+      <div id="hint" class="hint">Presets 1-4 open apps</div>
+    </footer>
+  </main>
+  <script src="usage-viz.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
