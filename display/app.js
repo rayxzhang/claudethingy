@@ -3,7 +3,7 @@
   var FLIGHT_POLL_MS = 5000;
   var USAGE_POLL_MS = 60000;
   var USAGE_HISTORY_POLL_MS = 15000;
-  var HOME_PAGES = ["hours", "days", "weeks", "limits"];
+  var HOME_PAGES = ["limits", "hours", "days", "weeks"];
   var INPUT_ARM_MS = 160;
   var TOAST_MS = 1600;
   var HOLD_MS = 1500;
@@ -15,7 +15,7 @@
 
   var state = {
     screen: "home",
-    homePage: "hours",
+    homePage: "limits",
     usage: null,
     usageHistory: null,
     detailHex: null,
@@ -472,7 +472,7 @@
 
   function moveFocus(delta) {
     if (state.screen === "home") {
-      if (state.homePage === "hours" && delta < 0) {
+      if (state.homePage === "limits" && delta < 0) {
         enterPlaneView();
         return;
       }
@@ -571,17 +571,17 @@
       else byId("hint").textContent = "No aircraft in view · Right for usage";
       return;
     }
-    if (state.homePage === "hours") {
-      byId("hint").textContent = seatedHexes().length
-        ? "Click to open · Left for aircraft · Turn for usage"
-        : "Left for aircraft · Turn for Today, 7 days, 12 weeks, limits";
-      return;
-    }
     if (state.homePage === "limits") {
-      byId("hint").textContent = "Turn for usage · Presets 1-4 open apps";
+      byId("hint").textContent = seatedHexes().length
+        ? "Click to open · Left for aircraft · Right for daily"
+        : "Left for aircraft · Right for daily";
       return;
     }
-    byId("hint").textContent = "Turn for Today, 7 days, 12 weeks, limits";
+    if (state.homePage === "hours") {
+      byId("hint").textContent = "Turn for 7 days, 12 weeks · Left for 5 hour";
+      return;
+    }
+    byId("hint").textContent = "Turn for Today, 7 days, 12 weeks";
   }
 
   function paintBannerSlot(slot) {
