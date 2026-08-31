@@ -4,8 +4,9 @@ import path from "node:path";
 
 const TOKEN_URL = "https://console.anthropic.com/v1/oauth/token";
 const USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
+const USAGE_URL_WALL = `${USAGE_URL}?at_wall=1&skip_spend=1`;
 const CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
-const USER_AGENT = "claude-code/2.1.72";
+const USER_AGENT = "claude-code/2.1.250";
 
 function claudeDir() {
   const override = process.env.CLAUDE_CONFIG_DIR;
@@ -74,47 +75,63 @@ function planFromCredentials(creds) {
   return String(tier).replace(/^default_claude_/, "");
 }
 
+function asPercent(raw) {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return null;
+  // Claude Code 2.1.250 does utilization * 100 for statusline used_percentage.
+  // Fractions in (0, 1) are 0-1 utilization. 1.0 is 1%, not 100%.
+  const pct = n > 0 && n < 1 ? n * 100 : n;
+  return Math.round(Math.min(pct, 100) * 10) / 10;
+}
+
+function readPercent(entry) {
+  if (!entry || typeof entry !== "object") return null;
+  if (entry.used_percentage != null) return asPercent(entry.used_percentage);
+  if (entry.percent != null) return asPercent(entry.percent);
+  if (entry.utilization != null) return asPercent(entry.utilization);
+  return null;
+}
+
+function classifyLimit(entry) {
+  const kind = String(entry.kind || "");
+  const group = String(entry.group || "");
+  if (kind === "session" || kind === "five_hour" || group === "session") {
+    return { id: "session", label: "Session (5h)", order: 0 };
+  }
+  if (kind === "weekly_scoped") {
+    const name =
+      entry.scope?.model?.display_name ||
+      entry.scope?.model?.id ||
+      "scoped";
+    return {
+      id: `weekly_${String(name).toLowerCase().replace(/\s+/g, "_")}`,
+      label: `Weekly (${name})`,
+      order: 2,
+    };
+  }
+  if (kind === "weekly_all" || kind === "seven_day" || kind === "weekly" || group === "weekly") {
+    return { id: "weekly", label: "Weekly", order: 1 };
+  }
+  if (!kind) return null;
+  return { id: kind, label: kind.replace(/_/g, " "), order: 9 };
+}
+
 function parseLimitsArray(limits) {
   const buckets = [];
 
   for (const entry of limits) {
     if (!entry || typeof entry !== "object") continue;
-    const pct = entry.percent;
-    if (typeof pct !== "number" || !Number.isFinite(pct)) continue;
-
-    const kind = entry.kind;
-    let id;
-    let label;
-    let order;
-
-    if (kind === "session") {
-      id = "session";
-      label = "Session (5h)";
-      order = 0;
-    } else if (kind === "weekly_all") {
-      id = "weekly";
-      label = "Weekly";
-      order = 1;
-    } else if (kind === "weekly_scoped") {
-      const name =
-        entry.scope?.model?.display_name ||
-        entry.scope?.model?.id ||
-        "scoped";
-      id = `weekly_${String(name).toLowerCase().replace(/\s+/g, "_")}`;
-      label = `Weekly (${name})`;
-      order = 2;
-    } else {
-      id = String(kind || "other");
-      label = id.replace(/_/g, " ");
-      order = 9;
-    }
-
+    const percent = readPercent(entry);
+    if (percent == null) continue;
+    const cls = classifyLimit(entry);
+    if (!cls) continue;
     buckets.push({
-      id,
-      label,
-      order,
-      percent: Math.round(pct * 10) / 10,
-      resetsAt: entry.resets_at ?? null,
+      id: cls.id,
+      label: cls.label,
+      order: cls.order,
+      percent,
+      resetsAt: entry.resets_at ?? entry.resetsAt ?? null,
+      active: entry.is_active === true,
     });
   }
 
@@ -122,70 +139,95 @@ function parseLimitsArray(limits) {
   return buckets;
 }
 
-function parseLegacyResponse(apiData) {
+function parseNamedWindows(obj, mapping) {
   const buckets = [];
-  const mapping = [
-    ["five_hour", "Session (5h)", 0],
-    ["seven_day", "Weekly", 1],
-    ["seven_day_sonnet", "Weekly (Sonnet)", 2],
-    ["seven_day_opus", "Weekly (Opus)", 3],
-  ];
-
-  for (const [key, label, order] of mapping) {
-    const entry = apiData[key];
+  if (!obj || typeof obj !== "object") return buckets;
+  for (const [key, label, order, id] of mapping) {
+    const entry = obj[key];
     if (!entry || typeof entry !== "object") continue;
-    if (entry.utilization == null) continue;
+    const percent = readPercent(entry);
+    if (percent == null) continue;
     buckets.push({
-      id: key,
+      id: id || key,
       label,
       order,
-      percent: Math.round(Number(entry.utilization) * 10) / 10,
-      resetsAt: entry.resets_at ?? null,
+      percent,
+      resetsAt: entry.resets_at ?? entry.resetsAt ?? null,
+      active: false,
     });
   }
-
-  buckets.sort((a, b) => a.order - b.order);
   return buckets;
 }
 
-function normalizeUsage(apiData, creds) {
-  let buckets = [];
-  if (Array.isArray(apiData.limits)) {
-    buckets = parseLimitsArray(apiData.limits);
-  }
-  if (buckets.length === 0) {
-    buckets = parseLegacyResponse(apiData);
-  }
+function parseLegacyResponse(apiData) {
+  return parseNamedWindows(apiData, [
+    ["five_hour", "Session (5h)", 0, "session"],
+    ["seven_day", "Weekly", 1, "weekly"],
+    ["seven_day_sonnet", "Weekly (Sonnet)", 2, "weekly_sonnet"],
+    ["seven_day_opus", "Weekly (Opus)", 3, "weekly_opus"],
+  ]);
+}
 
-  const session = buckets.find((b) => b.id === "session" || b.id === "five_hour") ?? null;
-  const weekly = buckets.find((b) => b.id === "weekly" || b.id === "seven_day") ?? null;
+function parseRateLimits(rateLimits) {
+  return parseNamedWindows(rateLimits, [
+    ["five_hour", "Session (5h)", 0, "session"],
+    ["seven_day", "Weekly", 1, "weekly"],
+  ]);
+}
+
+function pickBucket(buckets, ids) {
+  const active = buckets.find((b) => b.active && ids.includes(b.id));
+  if (active) return active;
+  return buckets.find((b) => ids.includes(b.id)) ?? null;
+}
+
+function mergeBucketLists(lists) {
+  const byId = new Map();
+  for (const list of lists) {
+    for (const bucket of list) {
+      if (!byId.has(bucket.id)) byId.set(bucket.id, bucket);
+    }
+  }
+  return Array.from(byId.values()).sort(
+    (a, b) => a.order - b.order || a.label.localeCompare(b.label),
+  );
+}
+
+export function normalizeUsage(apiData, creds) {
+  const data = apiData && typeof apiData === "object" ? apiData : {};
+  const buckets = mergeBucketLists([
+    Array.isArray(data.limits) ? parseLimitsArray(data.limits) : [],
+    parseLegacyResponse(data),
+    parseRateLimits(data.rate_limits),
+  ]);
 
   return {
     plan: planFromCredentials(creds),
     updatedAt: new Date().toISOString(),
-    session,
-    weekly,
+    session: pickBucket(buckets, ["session", "five_hour"]),
+    weekly: pickBucket(buckets, ["weekly", "seven_day"]),
     buckets,
-    extraUsage: apiData.extra_usage ?? null,
+    extraUsage: data.extra_usage ?? data.spend ?? null,
   };
 }
 
 async function fetchUsageRaw(token) {
-  const response = await fetch(USAGE_URL, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      "User-Agent": USER_AGENT,
-      "anthropic-beta": "oauth-2025-04-20",
-    },
-  });
-
-  if (!response.ok) {
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+    "User-Agent": USER_AGENT,
+    "anthropic-beta": "oauth-2025-04-20",
+  };
+  const urls = [USAGE_URL_WALL, USAGE_URL];
+  let lastError = null;
+  for (const url of urls) {
+    const response = await fetch(url, { headers });
+    if (response.ok) return response.json();
     const body = await response.text();
-    throw new Error(`Usage API ${response.status}: ${body.slice(0, 200)}`);
+    lastError = new Error(`Usage API ${response.status}: ${body.slice(0, 200)}`);
+    if (response.status !== 404 && response.status !== 400) break;
   }
-
-  return response.json();
+  throw lastError;
 }
 
 export async function getUsageSnapshot() {

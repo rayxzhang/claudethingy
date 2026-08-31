@@ -601,14 +601,31 @@
     card.className = tone ? "usage-card " + tone : "usage-card";
   }
 
+  function usageWindow(usage, ids) {
+    if (!usage) return null;
+    var i, id, b, buckets;
+    for (i = 0; i < ids.length; i++) {
+      id = ids[i];
+      if (usage[id] && typeof usage[id].percent === "number") return usage[id];
+    }
+    buckets = usage.buckets || [];
+    for (i = 0; i < buckets.length; i++) {
+      b = buckets[i];
+      for (id = 0; id < ids.length; id++) {
+        if (b && b.id === ids[id] && typeof b.percent === "number") return b;
+      }
+    }
+    return null;
+  }
+
   function paintUsageCards() {
     paintUsageCard(
       "session-card", "session-percent", "session-bar", "session-reset",
-      state.usage && state.usage.session, "paintedSessionPct"
+      usageWindow(state.usage, ["session", "five_hour"]), "paintedSessionPct"
     );
     paintUsageCard(
       "weekly-card", "weekly-percent", "weekly-bar", "weekly-reset",
-      state.usage && state.usage.weekly, "paintedWeeklyPct"
+      usageWindow(state.usage, ["weekly", "seven_day"]), "paintedWeeklyPct"
     );
   }
 
