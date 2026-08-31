@@ -20,6 +20,13 @@ carthingy_load_config() {
   export HOTKEY_2="${HOTKEY_2:-Mail|open -a Mail}"
   export HOTKEY_3="${HOTKEY_3:-Slack|open -a Slack}"
   export HOTKEY_4="${HOTKEY_4:-Safari|open -a Safari}"
+  export CLAUDE_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-}"
+  export CLAUDE_PROJECTS_DIR="${CLAUDE_PROJECTS_DIR:-}"
+  export CARTHINGY_TZ="${CARTHINGY_TZ:-}"
+  export RADAR_AIRPORTS="${RADAR_AIRPORTS:-}"
+  export EXCLUDE_NEAR_LAT="${EXCLUDE_NEAR_LAT:-}"
+  export EXCLUDE_NEAR_LON="${EXCLUDE_NEAR_LON:-}"
+  export EXCLUDE_DEST="${EXCLUDE_DEST:-}"
 }
 
 carthingy_adb_serial() {

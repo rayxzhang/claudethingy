@@ -29,6 +29,19 @@ else
   bad "No Claude credentials. Run \`claude\` to sign in."
 fi
 
+PROJECTS="${CLAUDE_PROJECTS_DIR:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects}"
+if [[ -d "$PROJECTS" ]]; then
+  NEWEST="$(find "$PROJECTS" -name '*.jsonl' -type f -exec stat -f '%m %N' {} \; 2>/dev/null | sort -nr | head -1 | cut -d' ' -f2- || true)"
+  if [[ -n "$NEWEST" ]]; then
+    ok "Transcripts in $PROJECTS"
+    ok "Newest jsonl $(stat -f '%Sm' -t '%Y-%m-%d %H:%M' "$NEWEST")"
+  else
+    warn "No .jsonl files under $PROJECTS"
+  fi
+else
+  bad "No Claude projects dir at $PROJECTS"
+fi
+
 if command -v adb >/dev/null 2>&1; then
   DEVICES="$(adb devices 2>/dev/null | tail -n +2 | tr -d '\r' | awk '$2=="device" {print $1}')"
   COUNT=0

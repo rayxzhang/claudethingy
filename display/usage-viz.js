@@ -976,6 +976,9 @@
   }
 
   function pickMetric(payload) {
+    var today = payload.today;
+    var todayTok = today ? (today.main || 0) + (today.sub || 0) : 0;
+    if (todayTok > 0 && !(today.cost > 0)) return "tokens";
     if (payload.totalCost === 0 && payload.totalTokens > 0) return "tokens";
     return "cost";
   }

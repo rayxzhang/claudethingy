@@ -1,10 +1,17 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { hostTimeZone, localParts } from "./tz.mjs";
 
-const PROJECTS_DIR = process.env.CLAUDE_PROJECTS_DIR
-  ? path.resolve(process.env.CLAUDE_PROJECTS_DIR)
-  : path.join(os.homedir(), ".claude", "projects");
+function projectsDir() {
+  if (process.env.CLAUDE_PROJECTS_DIR) {
+    return path.resolve(process.env.CLAUDE_PROJECTS_DIR);
+  }
+  const root = process.env.CLAUDE_CONFIG_DIR
+    ? path.resolve(process.env.CLAUDE_CONFIG_DIR)
+    : path.join(os.homedir(), ".claude");
+  return path.join(root, "projects");
+}
 
 const EMPTY = {
   main: 0,
@@ -30,15 +37,6 @@ function pad2(n) {
 
 function isoDate(y, m, d) {
   return y + "-" + pad2(m) + "-" + pad2(d);
-}
-
-function localParts(ms, tzOffsetMinutes) {
-  const shifted = new Date(ms - tzOffsetMinutes * 60000);
-  return {
-    date: isoDate(shifted.getUTCFullYear(), shifted.getUTCMonth() + 1, shifted.getUTCDate()),
-    hour: shifted.getUTCHours(),
-    weekday: (shifted.getUTCDay() + 6) % 7,
-  };
 }
 
 function addDays(iso, delta) {
@@ -93,6 +91,34 @@ function listJsonl(dir, out) {
   }
 }
 
+function recTime(rec) {
+  const t = rec && rec.timestamp;
+  if (typeof t === "number" && Number.isFinite(t)) {
+    return t < 1e12 ? t * 1000 : t;
+  }
+  if (typeof t === "string" && t) {
+    const ms = Date.parse(t);
+    if (Number.isFinite(ms)) return ms;
+    const asNum = Number(t);
+    if (Number.isFinite(asNum) && asNum > 0) {
+      return asNum < 1e12 ? asNum * 1000 : asNum;
+    }
+  }
+  return NaN;
+}
+
+function usageOf(rec) {
+  if (!rec) return null;
+  if (rec.message && rec.message.usage) return rec.message.usage;
+  if (rec.usage) return rec.usage;
+  return null;
+}
+
+function tokenWeight(usage) {
+  if (!usage) return 0;
+  return (Number(usage.output_tokens) || 0) + (Number(usage.input_tokens) || 0);
+}
+
 function foldFile(filePath) {
   let text;
   try {
@@ -101,6 +127,7 @@ function foldFile(filePath) {
     return [];
   }
   const lastById = new Map();
+  const results = [];
   const lines = text.split("\n");
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -111,24 +138,37 @@ function foldFile(filePath) {
     } catch {
       continue;
     }
-    if (!rec || rec.type !== "assistant" || !rec.message || !rec.message.usage) continue;
-    const id = rec.message.id || rec.uuid || String(i);
-    lastById.set(id, rec);
+    const usage = usageOf(rec);
+    if (!rec || !usage) continue;
+    const assistantLike =
+      rec.type === "assistant" ||
+      (rec.message && rec.message.role === "assistant");
+    if (assistantLike) {
+      const id = (rec.message && rec.message.id) || rec.uuid || String(i);
+      const prev = lastById.get(id);
+      if (prev && tokenWeight(usageOf(prev)) > tokenWeight(usage)) continue;
+      lastById.set(id, rec);
+      continue;
+    }
+    if (rec.type === "result") results.push(rec);
   }
-  return Array.from(lastById.values());
+  const folded = Array.from(lastById.values());
+  return folded.length ? folded : results;
 }
 
-function bump(bucket, rec, tzOffsetMinutes) {
-  const ms = Date.parse(rec.timestamp);
+function bump(bucket, rec, timeZone) {
+  const ms = recTime(rec);
   if (!Number.isFinite(ms)) return;
-  const usage = rec.message.usage;
+  const usage = usageOf(rec);
+  if (!usage) return;
   const tout = Number(usage.output_tokens) || 0;
   const tin = Number(usage.input_tokens) || 0;
   const tcr = Number(usage.cache_read_input_tokens) || 0;
   const tcc = Number(usage.cache_creation_input_tokens) || 0;
-  const priced = costOf(usage, rec.message.model);
+  const model = (rec.message && rec.message.model) || rec.model;
+  const priced = costOf(usage, model);
   const side = Boolean(rec.isSidechain);
-  const parts = localParts(ms, tzOffsetMinutes);
+  const parts = localParts(ms, timeZone);
   const day = bucket.days.get(parts.date) || {
     date: parts.date,
     main: 0,
@@ -178,7 +218,8 @@ function bump(bucket, rec, tzOffsetMinutes) {
   }
   bucket.hours[hourKey] = hour;
 
-  if (rec.sessionId) bucket.sessions.add(parts.date + "|" + rec.sessionId);
+  const sessionId = rec.sessionId || rec.session_id;
+  if (sessionId) bucket.sessions.add(parts.date + "|" + sessionId);
 }
 
 function dayOrEmpty(iso, days) {
@@ -199,17 +240,20 @@ function dayOrEmpty(iso, days) {
   };
 }
 
-export function getUsageHistory(tzOffsetMinutes) {
-  const tz = typeof tzOffsetMinutes === "number" ? tzOffsetMinutes : new Date().getTimezoneOffset();
-  const nowParts = localParts(Date.now(), tz);
+export function getUsageHistory() {
+  const timeZone = hostTimeZone();
+  const nowParts = localParts(Date.now(), timeZone);
   const todayIso = nowParts.date;
+  const dir = projectsDir();
   const files = [];
-  listJsonl(PROJECTS_DIR, files);
+  listJsonl(dir, files);
 
   const bucket = { days: new Map(), hours: {}, sessions: new Set() };
+  let folded = 0;
   for (let i = 0; i < files.length; i++) {
     const recs = foldFile(files[i]);
-    for (let r = 0; r < recs.length; r++) bump(bucket, recs[r], tz);
+    folded += recs.length;
+    for (let r = 0; r < recs.length; r++) bump(bucket, recs[r], timeZone);
   }
 
   for (const key of bucket.sessions) {
@@ -254,5 +298,11 @@ export function getUsageHistory(tzOffsetMinutes) {
     trackedDays,
     syncedAt: Date.now(),
     empty: EMPTY,
+    source: {
+      dir,
+      timeZone,
+      files: files.length,
+      messages: folded,
+    },
   };
 }

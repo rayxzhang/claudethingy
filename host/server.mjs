@@ -6,6 +6,7 @@ import { credentialsStatus, getUsageSnapshot } from "./claude-usage.mjs";
 import { flightsConfig, getFlightsSnapshot } from "./flights.mjs";
 import { listHotkeys, runHotkey } from "./hotkeys.mjs";
 import { getUsageHistory } from "./usage-history.mjs";
+import { hostTimeZone, tzOffsetMinutesAt } from "./tz.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, "..", "display");
@@ -51,7 +52,7 @@ function refreshHistoryCache(force = false) {
     return historyCache;
   }
   try {
-    const data = getUsageHistory(clockPayload().tzOffsetMinutes);
+    const data = getUsageHistory();
     historyCache = { data, error: null, fetchedAt: Date.now() };
   } catch (error) {
     historyCache = {
@@ -92,10 +93,10 @@ function sendJson(res, status, payload) {
 }
 
 function clockPayload() {
-  const now = new Date();
+  const now = Date.now();
   return {
-    now: now.getTime(),
-    tzOffsetMinutes: now.getTimezoneOffset(),
+    now,
+    tzOffsetMinutes: tzOffsetMinutesAt(now, hostTimeZone()),
   };
 }
 
