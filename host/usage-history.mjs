@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { hostTimeZone, localParts } from "./tz.mjs";
+import { catalogStatus, costOf, ensureCatalog, tokensFromUsage } from "./pricing.mjs";
 
 function projectsDir() {
   if (process.env.CLAUDE_PROJECTS_DIR) {
@@ -25,12 +26,6 @@ const EMPTY = {
   tcr: 0,
 };
 
-const RATES = [
-  { test: /opus/i, input: 15, output: 75 },
-  { test: /sonnet/i, input: 3, output: 15 },
-  { test: /haiku/i, input: 0.25, output: 1.25 },
-];
-
 function pad2(n) {
   return (n < 10 ? "0" : "") + n;
 }
@@ -44,33 +39,6 @@ function addDays(iso, delta) {
   const utc = Date.UTC(y, m - 1, d + delta);
   const dt = new Date(utc);
   return isoDate(dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate());
-}
-
-function ratesFor(model) {
-  const id = String(model || "");
-  for (let i = 0; i < RATES.length; i++) {
-    if (RATES[i].test.test(id)) return RATES[i];
-  }
-  return null;
-}
-
-function costOf(usage, model) {
-  const rates = ratesFor(model);
-  if (!rates) return { cost: 0, priced: false };
-  const tin = Number(usage.input_tokens) || 0;
-  const tout = Number(usage.output_tokens) || 0;
-  const tcr = Number(usage.cache_read_input_tokens) || 0;
-  const cache = usage.cache_creation || {};
-  const tcc5 = Number(cache.ephemeral_5m_input_tokens) || 0;
-  const tcc1h = Number(cache.ephemeral_1h_input_tokens) || Number(usage.cache_creation_input_tokens) || 0;
-  const perM = 1 / 1e6;
-  const cost =
-    tin * rates.input * perM +
-    tout * rates.output * perM +
-    tcr * rates.input * 0.1 * perM +
-    tcc5 * rates.input * 1.25 * perM +
-    tcc1h * rates.input * 2 * perM;
-  return { cost, priced: true };
 }
 
 function listJsonl(dir, out) {
@@ -161,10 +129,11 @@ function bump(bucket, rec, timeZone) {
   if (!Number.isFinite(ms)) return;
   const usage = usageOf(rec);
   if (!usage) return;
-  const tout = Number(usage.output_tokens) || 0;
-  const tin = Number(usage.input_tokens) || 0;
-  const tcr = Number(usage.cache_read_input_tokens) || 0;
-  const tcc = Number(usage.cache_creation_input_tokens) || 0;
+  const tokens = tokensFromUsage(usage);
+  const tout = tokens.output;
+  const tin = tokens.input;
+  const tcr = tokens.read;
+  const tcc = tokens.write;
   const model = (rec.message && rec.message.model) || rec.model;
   const priced = costOf(usage, model);
   const side = Boolean(rec.isSidechain);
@@ -188,10 +157,8 @@ function bump(bucket, rec, timeZone) {
   day.tout += tout;
   day.tcc += tcc;
   day.tcr += tcr;
-  if (priced.priced) {
-    day.cost += priced.cost;
-    day.priced = true;
-  }
+  if (priced.cost) day.cost += priced.cost;
+  if (priced.priced) day.priced = true;
   bucket.days.set(parts.date, day);
 
   const hourKey = parts.date + "|" + parts.hour;
@@ -212,10 +179,8 @@ function bump(bucket, rec, timeZone) {
   hour.tout += tout;
   hour.tcc += tcc;
   hour.tcr += tcr;
-  if (priced.priced) {
-    hour.cost += priced.cost;
-    hour.priced = true;
-  }
+  if (priced.cost) hour.cost += priced.cost;
+  if (priced.priced) hour.priced = true;
   bucket.hours[hourKey] = hour;
 
   const sessionId = rec.sessionId || rec.session_id;
@@ -240,7 +205,8 @@ function dayOrEmpty(iso, days) {
   };
 }
 
-export function getUsageHistory() {
+export async function getUsageHistory() {
+  await ensureCatalog();
   const timeZone = hostTimeZone();
   const nowParts = localParts(Date.now(), timeZone);
   const todayIso = nowParts.date;
@@ -303,6 +269,7 @@ export function getUsageHistory() {
       timeZone,
       files: files.length,
       messages: folded,
+      pricing: catalogStatus(),
     },
   };
 }

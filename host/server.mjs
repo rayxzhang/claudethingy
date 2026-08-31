@@ -46,13 +46,13 @@ async function refreshUsageCache(force = false) {
   return usageCache;
 }
 
-function refreshHistoryCache(force = false) {
+async function refreshHistoryCache(force = false) {
   const age = Date.now() - historyCache.fetchedAt;
   if (!force && historyCache.data && age < HISTORY_REFRESH_MS) {
     return historyCache;
   }
   try {
-    const data = getUsageHistory();
+    const data = await getUsageHistory();
     historyCache = { data, error: null, fetchedAt: Date.now() };
   } catch (error) {
     historyCache = {
@@ -139,7 +139,7 @@ const server = http.createServer(async (req, res) => {
 
   if (url.pathname === "/api/usage-history") {
     const force = url.searchParams.get("refresh") === "1";
-    const snapshot = refreshHistoryCache(force);
+    const snapshot = await refreshHistoryCache(force);
     sendJson(res, snapshot.error && !snapshot.data ? 503 : 200, snapshot.data || { error: snapshot.error });
     return;
   }
@@ -194,7 +194,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 await refreshUsageCache(true);
-refreshHistoryCache(true);
+await refreshHistoryCache(true);
 await getFlightsSnapshot(true);
 
 server.listen(PORT, "127.0.0.1", () => {
