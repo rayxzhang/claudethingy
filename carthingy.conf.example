@@ -10,6 +10,8 @@ OFFICE_LABEL="Office"
 # EXCLUDE_NEAR_LAT=
 # EXCLUDE_NEAR_LON=
 # EXCLUDE_DEST=
+# Optional: airport markers on the detail radar (CODE:lat:lon, comma-separated)
+# RADAR_AIRPORTS=
 
 HOTKEY_1="Calendar|open -a Calendar"
 HOTKEY_2="Mail|open -a Mail"

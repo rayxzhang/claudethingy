@@ -61,32 +61,34 @@
     </section>
 
     <section id="screen-detail" class="panel">
-      <div class="hero">
-        <div id="detail-callsign" class="hero-callsign">—</div>
-        <div id="detail-type" class="hero-kicker">—</div>
-        <div id="detail-route" class="hero-route">—</div>
-        <div class="metrics">
-          <div class="metric">
-            <div class="metric-label">Alt</div>
-            <div id="detail-alt" class="metric-value">—</div>
+      <div class="detail-card">
+        <div class="detail-copy">
+          <div id="detail-callsign" class="hero-callsign">—</div>
+          <div id="detail-type" class="hero-kicker">—</div>
+          <div id="detail-route" class="hero-route">—</div>
+          <div class="metrics">
+            <div class="metric">
+              <div class="metric-label">Alt</div>
+              <div id="detail-alt" class="metric-value">—</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Speed</div>
+              <div id="detail-speed" class="metric-value">—</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">Dist</div>
+              <div id="detail-distance" class="metric-value">—</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">ETA</div>
+              <div id="detail-eta" class="metric-value">—</div>
+            </div>
           </div>
-          <div class="metric">
-            <div class="metric-label">Speed</div>
-            <div id="detail-speed" class="metric-value">—</div>
-          </div>
-          <div class="metric">
-            <div class="metric-label">Dist</div>
-            <div id="detail-distance" class="metric-value">—</div>
-          </div>
-          <div class="metric">
-            <div class="metric-label">ETA</div>
-            <div id="detail-eta" class="metric-value">—</div>
-          </div>
+          <div id="detail-vs" class="traffic-vs">Traffic vs —</div>
         </div>
-      </div>
-      <div class="caption-group">
-        <div id="extra-title" class="caption-title">Details</div>
-        <div id="extra-body" class="caption-body">Turn for more</div>
+        <div class="detail-radar">
+          <canvas id="radar-canvas" width="240" height="240"></canvas>
+        </div>
       </div>
     </section>
 
@@ -96,6 +98,7 @@
     </footer>
   </main>
   <script src="usage-viz.js"></script>
+  <script src="radar.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

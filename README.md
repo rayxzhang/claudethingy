@@ -133,6 +133,7 @@ HOTKEY_4="Safari|open -a Safari"
 | `OFFICE_LABEL` | `Office` | Label on the dashboard |
 | `EXCLUDE_NEAR_LAT` / `EXCLUDE_NEAR_LON` | unset | Drop aircraft closer to this point than to the office |
 | `EXCLUDE_DEST` | unset | Comma-separated destination codes to drop |
+| `RADAR_AIRPORTS` | unset | Detail-radar airport markers as `CODE:lat:lon` pairs, comma-separated. Markers farther than `OFFICE_RADIUS_NM` are dropped. |
 | `HOTKEY_1` … `HOTKEY_4` | Calendar/Mail/Slack/Safari | Preset shortcuts (`Label\|open args`) |
 | `CARTHINGY_FLIGHTS_REFRESH_MS` | `15000` | Host ADS-B cache interval |
 | `CARTHINGY_REFRESH_MS` | `120000` | Claude cache refresh interval |

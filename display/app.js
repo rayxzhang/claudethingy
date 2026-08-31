@@ -19,11 +19,13 @@
   var state = {
     screen: "home",
     homePage: "hours",
-    extraIndex: 0,
     usage: null,
     usageHistory: null,
     detailHex: null,
     detailAircraft: null,
+    snapshotAircraft: [],
+    airports: [],
+    radiusNm: 7,
     focusedAlertHex: null,
     paintedSessionPct: null,
     paintedWeeklyPct: null,
@@ -90,6 +92,28 @@
     return from + " → " + to;
   }
 
+  function formatDetailRoute(route) {
+    if (!route) return "Route pending";
+    var from = route.origin;
+    var to = route.destination;
+    if (!from && !to) return "Route pending";
+    return (from || "?") + " → " + (to || "?");
+  }
+
+  function formatDetailAlt(ft) {
+    if (ft == null) return "—";
+    var n = Math.round(ft);
+    var sign = n < 0 ? "-" : "";
+    var s = String(Math.abs(n));
+    var out = "";
+    var i;
+    for (i = 0; i < s.length; i++) {
+      if (i > 0 && (s.length - i) % 3 === 0) out += ",";
+      out += s.charAt(i);
+    }
+    return sign + out + " ft";
+  }
+
   function formatReset(iso) {
     if (!iso) return "Reset unknown";
     var date = new Date(iso);
@@ -108,34 +132,6 @@
     if (pct >= 90) return "danger";
     if (pct >= 75) return "warn";
     return "";
-  }
-
-  function extraPages(plane) {
-    if (!plane) return [{ title: "Standby", body: "No aircraft nearby" }];
-    var pages = [];
-    if (plane.route) {
-      pages.push({
-        title: "Route",
-        body: (plane.route.origin || "?") + " · " + (plane.route.originName || "") + "  →  " +
-          (plane.route.destination || "?") + " · " + (plane.route.destinationName || ""),
-      });
-    } else {
-      pages.push({ title: "Route", body: "Not in the route database yet" });
-    }
-    pages.push({
-      title: "Aircraft",
-      body: [plane.registration || "—", plane.typeName || plane.typeCode, plane.category, plane.squawk ? "squawk " + plane.squawk : ""]
-        .filter(Boolean).join(" · "),
-    });
-    pages.push({
-      title: "Flight",
-      body: [
-        plane.trackDeg != null ? plane.trackDeg + "° track" : null,
-        plane.vRateFpm != null ? plane.vRateFpm + " fpm" : null,
-        plane.navAltFt != null ? "assigned " + formatAlt(plane.navAltFt) : null,
-      ].filter(Boolean).join(" · ") || "No extra telemetry",
-    });
-    return pages;
   }
 
   function bannerSub(plane) {
@@ -250,6 +246,7 @@
   }
 
   function ingestAircraft(planes) {
+    state.snapshotAircraft = planes;
     var incoming = {};
     var i, plane, hex, rec, departed;
     for (i = 0; i < planes.length; i++) {
@@ -361,7 +358,6 @@
     if (!rec) return;
     state.detailHex = rec.hex;
     state.detailAircraft = rec.aircraft;
-    state.extraIndex = 0;
     pauseVisibleLingering();
     setScreen("detail");
     paintDetail();
@@ -403,11 +399,34 @@
       return;
     }
     if (state.screen === "detail") {
-      var pages = extraPages(state.detailAircraft);
-      if (!pages.length) return;
-      state.extraIndex = (state.extraIndex + (delta % pages.length) + pages.length) % pages.length;
-      paintDetail();
+      cycleDetailAircraft(delta);
     }
+  }
+
+  function cycleDetailAircraft(delta) {
+    var list = state.snapshotAircraft || [];
+    if (list.length < 2) return;
+    var hex = state.detailHex;
+    var idx = 0;
+    var i;
+    var found = false;
+    for (i = 0; i < list.length; i++) {
+      if (list[i].hex === hex) {
+        idx = i;
+        found = true;
+        break;
+      }
+    }
+    if (!found) idx = 0;
+    else idx = (idx + (delta % list.length) + list.length) % list.length;
+    var plane = list[idx];
+    if (!plane) return;
+    state.detailHex = plane.hex;
+    state.detailAircraft = plane;
+    if (visibleHexes.indexOf(plane.hex) !== -1) {
+      state.focusedAlertHex = plane.hex;
+    }
+    paintDetail();
   }
 
   function showToast(text) {
@@ -443,7 +462,7 @@
 
   function paintHint() {
     if (state.screen === "detail") {
-      byId("hint").textContent = "Turn for more · Back to return";
+      byId("hint").textContent = "Back dismisses";
       return;
     }
     if (visibleHexes.length) {
@@ -531,27 +550,85 @@
     paintBannerSlot(0);
     paintBannerSlot(1);
     paintUsageCards();
+    if (state.homePage !== "limits" && !state.usageHistory) {
+      var viz = byId("usage-viz");
+      if (viz && !viz.querySelector(".stage")) {
+        viz.innerHTML = '<div class="usage-empty">Waiting for host</div>';
+      }
+    }
     byId("screen-home").className = homeClass();
     paintHint();
     paintChrome();
+  }
+
+  function clampRel(n) {
+    if (n > 99) return 99;
+    if (n < -99) return -99;
+    return n;
+  }
+
+  function toRadarTarget(plane, focus, role) {
+    if (!plane || plane.distanceNm == null || plane.bearingDeg == null) return null;
+    if (!isFinite(plane.distanceNm) || !isFinite(plane.bearingDeg)) return null;
+    var rel = null;
+    var trend = null;
+    if (role === "other") {
+      if (plane.altFt != null && focus && focus.altFt != null) {
+        rel = clampRel(Math.round((plane.altFt - focus.altFt) / 100));
+      }
+      if (plane.vRateFpm != null && Math.abs(plane.vRateFpm) >= 128) {
+        trend = plane.vRateFpm > 0 ? "up" : "down";
+      }
+    }
+    return {
+      hex: plane.hex,
+      callsign: plane.callsign || plane.hex,
+      role: role,
+      distanceNm: plane.distanceNm,
+      bearingDeg: plane.bearingDeg,
+      trackDeg: plane.trackDeg != null ? plane.trackDeg : null,
+      relHundreds: rel,
+      trend: trend
+    };
+  }
+
+  function buildRadarScene() {
+    var focus = state.detailAircraft;
+    var planes = state.snapshotAircraft || [];
+    var traffic = [];
+    var seen = {};
+    var i, plane, target;
+    if (focus && focus.hex) {
+      target = toRadarTarget(focus, focus, "focus");
+      if (target) {
+        traffic.push(target);
+        seen[focus.hex] = true;
+      }
+    }
+    for (i = 0; i < planes.length; i++) {
+      plane = planes[i];
+      if (!plane || !plane.hex || seen[plane.hex]) continue;
+      target = toRadarTarget(plane, focus, "other");
+      if (target) traffic.push(target);
+    }
+    return {
+      radiusNm: state.radiusNm || 7,
+      traffic: traffic,
+      airports: state.airports || []
+    };
   }
 
   function paintDetail() {
     var plane = state.detailAircraft;
     byId("detail-callsign").textContent = plane ? plane.callsign : "—";
     byId("detail-type").textContent = plane ? (plane.typeName || plane.typeCode || "Aircraft") : "No aircraft selected";
-    byId("detail-route").textContent = plane ? formatRoute(plane.route) : "Turn back to home";
-    byId("detail-alt").textContent = plane ? formatAlt(plane.altFt) : "—";
+    byId("detail-route").textContent = plane ? formatDetailRoute(plane.route) : "Route pending";
+    byId("detail-alt").textContent = plane ? formatDetailAlt(plane.altFt) : "—";
     byId("detail-speed").textContent = plane && plane.gsKts != null ? plane.gsKts + " kt" : "—";
     byId("detail-distance").textContent = plane && plane.distanceNm != null ? plane.distanceNm + " nm" : "—";
     byId("detail-eta").textContent = plane ? formatEta(plane.etaMin) : "—";
-
-    var pages = extraPages(plane);
-    if (state.extraIndex >= pages.length) state.extraIndex = 0;
-    if (state.extraIndex < 0) state.extraIndex = pages.length - 1;
-    var page = pages[state.extraIndex];
-    byId("extra-title").textContent = page.title;
-    byId("extra-body").textContent = page.body;
+    byId("detail-vs").textContent = "Traffic vs " + (plane && plane.callsign ? plane.callsign : "—");
+    if (window.RadarViz) RadarViz.paint(buildRadarScene());
     paintHint();
   }
 
@@ -591,6 +668,10 @@
       if (payload.flights.office && payload.flights.office.label) {
         state.officeLabel = payload.flights.office.label;
       }
+      if (payload.flights.office && typeof payload.flights.office.radiusNm === "number") {
+        state.radiusNm = payload.flights.office.radiusNm;
+      }
+      state.airports = payload.flights.airports || [];
       syncClock(payload.clock);
       ingestAircraft(parseAircraftList(payload.flights.aircraft));
       paintHome();
@@ -683,6 +764,7 @@
 
   tickClock();
   paintHome();
+  if (window.RadarViz) RadarViz.mount(byId("radar-canvas"));
   fetchHotkeys();
   fetchFlights();
   fetchUsage();

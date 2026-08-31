@@ -101,6 +101,31 @@ function haversineNm(lat1, lon1, lat2, lon2) {
   return 3440.065 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+function parseRadarAirports() {
+  const raw = process.env.RADAR_AIRPORTS;
+  if (!raw) return [];
+  if (OFFICE.lat == null || OFFICE.lon == null) return [];
+
+  const out = [];
+  const parts = String(raw).split(",");
+  for (const part of parts) {
+    const bits = part.trim().split(":");
+    if (bits.length < 3) continue;
+    const code = bits[0].trim().toUpperCase();
+    const lat = Number(bits[1]);
+    const lon = Number(bits[2]);
+    if (!code || !Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+    const distanceNm = haversineNm(OFFICE.lat, OFFICE.lon, lat, lon);
+    if (distanceNm > OFFICE.radiusNm) continue;
+    out.push({
+      code,
+      distanceNm: Math.round(distanceNm * 10) / 10,
+      bearingDeg: Math.round(bearingFrom(OFFICE.lat, OFFICE.lon, lat, lon)),
+    });
+  }
+  return out;
+}
+
 function nearerExclude(ac) {
   if (EXCLUDE_NEAR.lat == null || EXCLUDE_NEAR.lon == null) return false;
   if (ac.lat == null || ac.lon == null) return false;
@@ -186,6 +211,16 @@ function normalizeAircraft(raw, route) {
   const dist = typeof raw.dst === "number" ? raw.dst : null;
   const gs = typeof raw.gs === "number" ? raw.gs : null;
   const alt = raw.alt_baro === "ground" ? 0 : raw.alt_baro;
+  let bearingDeg = typeof raw.dir === "number" ? Math.round(raw.dir) : null;
+  if (
+    bearingDeg == null &&
+    OFFICE.lat != null &&
+    OFFICE.lon != null &&
+    typeof raw.lat === "number" &&
+    typeof raw.lon === "number"
+  ) {
+    bearingDeg = Math.round(bearingFrom(OFFICE.lat, OFFICE.lon, raw.lat, raw.lon));
+  }
 
   return {
     hex: raw.hex ?? "",
@@ -200,7 +235,7 @@ function normalizeAircraft(raw, route) {
     vRateFpm: typeof raw.baro_rate === "number" ? Math.round(raw.baro_rate) : null,
     squawk: raw.squawk ?? "",
     distanceNm: dist != null ? Math.round(dist * 10) / 10 : null,
-    bearingDeg: typeof raw.dir === "number" ? Math.round(raw.dir) : null,
+    bearingDeg,
     etaMin: etaMinutes(dist, gs),
     navAltFt: typeof raw.nav_altitude_mcp === "number" ? Math.round(raw.nav_altitude_mcp) : null,
     navHeadingDeg: typeof raw.nav_heading === "number" ? Math.round(raw.nav_heading) : null,
@@ -326,6 +361,7 @@ export async function getFlightsSnapshot(force = false) {
     cache = {
       data: {
         office: OFFICE,
+        airports: parseRadarAirports(),
         aircraft,
         totalSeen: rawList.length,
         approachingCount: approaching.length,

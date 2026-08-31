@@ -172,10 +172,19 @@
 
   function animDone(a) {
     if (!a) return Promise.resolve();
-    if (a.finished) return a.finished.catch(function () {});
     return new Promise(function (r) {
-      a.onfinish = r;
-      a.oncancel = r;
+      var done = false;
+      function fin() {
+        if (done) return;
+        done = true;
+        r();
+      }
+      if (a.finished && typeof a.finished.then === "function") {
+        a.finished.then(fin, fin);
+      }
+      a.onfinish = fin;
+      a.oncancel = fin;
+      setTimeout(fin, 1600);
     });
   }
 
