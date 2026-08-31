@@ -24,7 +24,8 @@ Logs: `carthingy.log` in the repo root.
 | Location | Purpose |
 |----------|---------|
 | This repo | Host server, install scripts, dashboard files |
-| `~/.claude/.credentials.json` | Claude login (per Mac, not in git) |
+| macOS Keychain `Claude Code-credentials` | Claude login on macOS (Claude Code often never writes the json file) |
+| `~/.claude/.credentials.json` | Claude login on Linux / older installs |
 | Car Thing storage | ThingLabs firmware + dashboard UI (survives unplug) |
 | `carthingy.conf` | adb path, office coordinates, port (auto-created, gitignored) |
 
@@ -143,7 +144,7 @@ HOTKEY_4="Safari|open -a Safari"
 
 **No Claude credentials**
 
-Run `claude` on this Mac.
+Run `claude` on this Mac. On macOS the token lives in Keychain, not `~/.claude/.credentials.json`. The first time the host reads it, click **Always Allow** for the node binary. Do that from `./scripts/start.sh` in Terminal once so launchd is not the process waiting on a dialog.
 
 **No adb device**
 

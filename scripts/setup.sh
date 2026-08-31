@@ -62,12 +62,21 @@ check_credentials() {
   if [[ -n "${CLAUDE_CONFIG_DIR:-}" ]]; then
     creds="${CLAUDE_CONFIG_DIR}/.credentials.json"
   fi
-  if [[ ! -f "$creds" ]]; then
-    log "No Claude credentials yet at $creds"
-    log "Install Claude Code and run \`claude\` to sign in before usage data will load."
-    return 1
+  if [[ -f "$creds" ]]; then
+    return 0
   fi
-  return 0
+  if [[ "$(uname -s)" == "Darwin" ]] && {
+    /usr/bin/security find-generic-password -s "Claude Code-credentials" -a "$(id -un)" >/dev/null 2>&1 \
+      || /usr/bin/security find-generic-password -s "Claude Code-credentials" >/dev/null 2>&1
+  }; then
+    return 0
+  fi
+  log "No Claude credentials yet at $creds"
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    log "On macOS, Claude Code keeps the token in Keychain (Claude Code-credentials), not that file."
+  fi
+  log "Install Claude Code and run \`claude\` to sign in before usage data will load."
+  return 1
 }
 
 install_adb_macos() {

@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -7,6 +8,12 @@ const USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
 const USAGE_URL_WALL = `${USAGE_URL}?at_wall=1&skip_spend=1`;
 const CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
 const USER_AGENT = "claude-code/2.1.250";
+export const KEYCHAIN_SERVICE = "Claude Code-credentials";
+const SECURITY_BIN = "/usr/bin/security";
+const SECURITY_TIMEOUT_MS = 30_000;
+
+/** Last successful read: write-back must hit the same store Claude Code uses. */
+let credsSource = "file";
 
 function claudeDir() {
   const override = process.env.CLAUDE_CONFIG_DIR;
@@ -17,20 +24,102 @@ function credentialsPath() {
   return path.join(claudeDir(), ".credentials.json");
 }
 
-function readCredentials() {
+function keychainAccount() {
+  return os.userInfo().username;
+}
+
+export function parseCredentialBlob(raw) {
+  if (typeof raw !== "string") return null;
   try {
-    return JSON.parse(fs.readFileSync(credentialsPath(), "utf8"));
+    const parsed = JSON.parse(raw.trim());
+    return parsed && typeof parsed === "object" ? parsed : null;
   } catch {
     return null;
   }
 }
 
-function writeCredentials(updated) {
+export function keychainFindArgs(account) {
+  if (account) {
+    return ["find-generic-password", "-s", KEYCHAIN_SERVICE, "-a", account, "-w"];
+  }
+  return ["find-generic-password", "-s", KEYCHAIN_SERVICE, "-w"];
+}
+
+export function keychainWriteArgs(account, json) {
+  return ["add-generic-password", "-U", "-s", KEYCHAIN_SERVICE, "-a", account, "-w", json];
+}
+
+function runSecurity(args) {
+  return execFileSync(SECURITY_BIN, args, {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: SECURITY_TIMEOUT_MS,
+  }).trim();
+}
+
+function readFileCredentials() {
+  try {
+    return parseCredentialBlob(fs.readFileSync(credentialsPath(), "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function readKeychainCredentials() {
+  if (process.platform !== "darwin") return null;
+  const account = keychainAccount();
+  for (const args of [keychainFindArgs(account), keychainFindArgs(null)]) {
+    try {
+      const parsed = parseCredentialBlob(runSecurity(args));
+      if (parsed?.claudeAiOauth?.accessToken) return parsed;
+    } catch {
+      // Item missing, or Keychain denied this node binary.
+    }
+  }
+  return null;
+}
+
+function readCredentials() {
+  const fromFile = readFileCredentials();
+  if (fromFile) {
+    credsSource = "file";
+    return fromFile;
+  }
+  const fromKeychain = readKeychainCredentials();
+  if (fromKeychain) {
+    credsSource = "keychain";
+    return fromKeychain;
+  }
+  credsSource = "missing";
+  return null;
+}
+
+function writeFileCredentials(updated) {
   const file = credentialsPath();
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const tmp = `${file}.${process.pid}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(updated), { mode: 0o600 });
   fs.renameSync(tmp, file);
+}
+
+function writeKeychainCredentials(updated) {
+  runSecurity(keychainWriteArgs(keychainAccount(), JSON.stringify(updated)));
+}
+
+function writeCredentials(updated) {
+  if (credsSource === "keychain") {
+    writeKeychainCredentials(updated);
+    return;
+  }
+  writeFileCredentials(updated);
+}
+
+function credentialsLocation() {
+  if (credsSource === "keychain") return `keychain:${KEYCHAIN_SERVICE}`;
+  if (credsSource === "missing" && process.platform === "darwin") {
+    return `${credentialsPath()} or keychain:${KEYCHAIN_SERVICE}`;
+  }
+  return credentialsPath();
 }
 
 async function refreshCredentials(creds) {
@@ -233,7 +322,11 @@ async function fetchUsageRaw(token) {
 export async function getUsageSnapshot() {
   let creds = readCredentials();
   if (!creds) {
-    throw new Error(`No Claude credentials at ${credentialsPath()}. Install Claude Code and run \`claude\` to sign in.`);
+    const looked =
+      process.platform === "darwin"
+        ? `${credentialsPath()} and macOS Keychain (${KEYCHAIN_SERVICE})`
+        : credentialsPath();
+    throw new Error(`No Claude credentials at ${looked}. Install Claude Code and run \`claude\` to sign in.`);
   }
 
   let oauth = creds.claudeAiOauth ?? {};
@@ -265,15 +358,16 @@ export async function getUsageSnapshot() {
 export function credentialsStatus() {
   const creds = readCredentials();
   if (!creds) {
-    return { ok: false, path: credentialsPath(), message: "missing" };
+    return { ok: false, path: credentialsLocation(), message: "missing" };
   }
   const token = creds.claudeAiOauth?.accessToken;
   if (!token) {
-    return { ok: false, path: credentialsPath(), message: "no token" };
+    return { ok: false, path: credentialsLocation(), message: "no token" };
   }
   return {
     ok: true,
-    path: credentialsPath(),
+    path: credentialsLocation(),
+    source: credsSource,
     plan: planFromCredentials(creds),
   };
 }

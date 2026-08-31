@@ -30,6 +30,11 @@ fi
 CREDS="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/.credentials.json"
 if [[ -f "$CREDS" ]]; then
   ok "Claude credentials at $CREDS"
+elif [[ "$(uname -s)" == "Darwin" ]] && {
+  /usr/bin/security find-generic-password -s "Claude Code-credentials" -a "$(id -un)" >/dev/null 2>&1 \
+    || /usr/bin/security find-generic-password -s "Claude Code-credentials" >/dev/null 2>&1
+}; then
+  ok "Claude credentials in macOS Keychain (Claude Code-credentials)"
 else
   bad "No Claude credentials. Run \`claude\` to sign in."
 fi
