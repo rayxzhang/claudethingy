@@ -8,7 +8,9 @@ carthingy_load_config "$REPO_ROOT"
 
 PORT="${CARTHINGY_PORT:-8787}"
 APP_DIR="/usr/share/claudethingy"
-APP_URL="file://${APP_DIR}/index.html"
+OLD_DIR="/usr/share/carthingy"
+REV="$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || printf '%s' "dev")"
+APP_URL="file://${APP_DIR}/index.html?v=${REV}"
 MARKER="claudethingy-kiosk"
 
 ADB_BIN="${CAR_THING_ADB:-$(command -v adb)}"
@@ -35,7 +37,7 @@ adb() {
 }
 
 log "device: $SERIAL"
-log "deploying dashboard to $APP_DIR"
+log "deploying dashboard $REV to $APP_DIR (and $OLD_DIR)"
 
 adb shell "mount -o remount,rw /" >/dev/null
 
@@ -43,8 +45,16 @@ if ! adb shell "test -f /etc/supervisord.conf.stock"; then
   adb shell "cp -n /etc/supervisord.conf /etc/supervisord.conf.stock" || true
 fi
 
-adb shell "mkdir -p $APP_DIR" >/dev/null
-adb push "$REPO_ROOT/display/." "$APP_DIR/" >/dev/null
+push_display() {
+  local dest="$1"
+  adb shell "mkdir -p $dest" >/dev/null
+  adb push "$REPO_ROOT/display/." "$dest/" >/dev/null
+  adb shell "grep -q '<title>claudethingy</title>' $dest/index.html" >/dev/null 2>&1 \
+    || fail "Push to $dest did not land the new index.html"
+}
+
+push_display "$APP_DIR"
+push_display "$OLD_DIR"
 
 log "pointing chromium at $APP_URL and disabling Spotify UI"
 
@@ -67,7 +77,14 @@ if [[ "$superbird_start" != "autostart=false" ]]; then
 fi
 
 adb shell "supervisorctl stop superbird" >/dev/null 2>&1 || true
-adb shell "supervisorctl restart chromium" >/dev/null 2>&1 || \
-  adb shell "supervisorctl restart superbird" >/dev/null 2>&1 || true
+adb shell "supervisorctl stop chromium" >/dev/null 2>&1 || true
+adb shell "killall chromium" >/dev/null 2>&1 || true
+sleep 1
+if ! adb shell "supervisorctl start chromium" >/dev/null 2>&1; then
+  adb shell "supervisorctl restart chromium" >/dev/null 2>&1 || \
+    adb shell "supervisorctl restart superbird" >/dev/null 2>&1 || \
+    fail "Could not restart Chromium. Check: adb shell supervisorctl status"
+fi
 
-log "kiosk applied. Live data loads when the host is running (port $PORT)."
+log "chromium app: $(adb shell "grep -o -- '--app=[^ ]*' /etc/supervisord.conf" 2>/dev/null | tr -d '\r' | head -1)"
+log "kiosk applied. Title on device should be claudethingy. Live data needs the host on port $PORT."
