@@ -414,15 +414,21 @@
     applyHomePage(next);
   }
 
-  function activate() {
-    if (state.screen !== "home") return;
-    if (!state.focusedAlertHex) return;
-    var plane = findPlane(state.focusedAlertHex);
+  function openSeatedPlane() {
+    var hex = state.focusedAlertHex || slotState.hex[0];
+    if (!hex) return;
+    var plane = findPlane(hex);
     if (!plane) return;
+    state.focusedAlertHex = hex;
     state.detailHex = plane.hex;
     state.detailAircraft = plane;
     setScreen("detail");
     paintDetail();
+  }
+
+  function activate() {
+    if (state.screen !== "home") return;
+    openSeatedPlane();
   }
 
   function goBack() {
@@ -832,6 +838,25 @@
   tickClock();
   paintHome();
   if (window.RadarViz) RadarViz.mount(byId("radar-canvas"));
+  var bannerEl = byId("alert-0");
+  var bannerTouchedAt = 0;
+  function onBannerPointer(event) {
+    if (event.type === "touchend") {
+      bannerTouchedAt = Date.now();
+      event.preventDefault();
+    } else if (event.type === "click" && Date.now() - bannerTouchedAt < 400) {
+      return;
+    }
+    if (event.stopPropagation) event.stopPropagation();
+    if (state.screen !== "home") return;
+    if (!slotState.hex[0]) return;
+    state.focusedAlertHex = slotState.hex[0];
+    openSeatedPlane();
+  }
+  if (bannerEl) {
+    bannerEl.addEventListener("click", onBannerPointer, true);
+    bannerEl.addEventListener("touchend", onBannerPointer, true);
+  }
   fetchHotkeys();
   fetchFlights();
   fetchUsage();

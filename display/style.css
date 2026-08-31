@@ -163,6 +163,8 @@ html, body {
   margin: 0 0 8px;
   overflow: visible;
   opacity: 1;
+  pointer-events: auto;
+  cursor: pointer;
   -webkit-transform: translateY(0);
   transform: translateY(0);
 }
