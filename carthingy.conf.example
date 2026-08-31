@@ -1,5 +1,6 @@
 CAR_THING_ADB=/opt/homebrew/bin/adb
 CAR_THING_SERIAL=YOUR_SERIAL
+CARTHINGY_NODE=/opt/homebrew/bin/node
 CARTHINGY_PORT=8787
 
 OFFICE_LAT=

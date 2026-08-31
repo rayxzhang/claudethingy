@@ -14,6 +14,7 @@ carthingy_load_config() {
   fi
   export CARTHINGY_PORT="${CARTHINGY_PORT:-8787}"
   export CAR_THING_ADB="${CAR_THING_ADB:-$(command -v adb 2>/dev/null || true)}"
+  export CARTHINGY_NODE="${CARTHINGY_NODE:-$(carthingy_node_bin || true)}"
   export OFFICE_RADIUS_NM="${OFFICE_RADIUS_NM:-7}"
   export OFFICE_LABEL="${OFFICE_LABEL:-Office}"
   export CARTHINGY_FLIGHTS_REFRESH_MS="${CARTHINGY_FLIGHTS_REFRESH_MS:-15000}"
@@ -33,21 +34,46 @@ carthingy_load_config() {
   export CARTHINGY_TZ="${CARTHINGY_TZ:-}"
 }
 
-carthingy_node_dir() {
+carthingy_node_bin() {
+  if [[ -n "${CARTHINGY_NODE:-}" && -x "$CARTHINGY_NODE" ]]; then
+    printf '%s\n' "$CARTHINGY_NODE"
+    return
+  fi
   local bin
   bin="$(command -v node 2>/dev/null || true)"
-  if [[ -n "$bin" ]]; then
-    dirname "$bin"
+  if [[ -n "$bin" && -x "$bin" ]]; then
+    printf '%s\n' "$bin"
     return
   fi
   if [[ -x /opt/homebrew/bin/node ]]; then
-    echo /opt/homebrew/bin
+    printf '%s\n' /opt/homebrew/bin/node
     return
   fi
   if [[ -x /usr/local/bin/node ]]; then
-    echo /usr/local/bin
+    printf '%s\n' /usr/local/bin/node
     return
   fi
+  return 1
+}
+
+carthingy_node_dir() {
+  local bin
+  bin="$(carthingy_node_bin || true)"
+  if [[ -n "$bin" ]]; then
+    dirname "$bin"
+  fi
+}
+
+# Existing confs never get rewritten by setup.sh. Append the pin if missing.
+carthingy_ensure_node_pin() {
+  local repo_root="$1"
+  local node_bin="${2:-}"
+  local config="$repo_root/carthingy.conf"
+  [[ -f "$config" ]] || return 0
+  grep -q '^CARTHINGY_NODE=' "$config" && return 0
+  [[ -n "$node_bin" ]] || node_bin="$(carthingy_node_bin || true)"
+  [[ -n "$node_bin" ]] || return 0
+  printf '\nCARTHINGY_NODE=%s\n' "$node_bin" >> "$config"
 }
 
 carthingy_detect_tz() {

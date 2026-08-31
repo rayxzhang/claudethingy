@@ -8,6 +8,7 @@ source "$REPO_ROOT/scripts/lib.sh"
 carthingy_load_config "$REPO_ROOT"
 
 ADB_BIN="${CAR_THING_ADB:-$(command -v adb)}"
+NODE_BIN="${CARTHINGY_NODE:-$(command -v node || echo /opt/homebrew/bin/node)}"
 SERIAL="${CAR_THING_SERIAL:-$(carthingy_adb_serial "$ADB_BIN")}"
 PORT="${CARTHINGY_PORT:-8787}"
 
@@ -30,6 +31,11 @@ fi
 
 if [[ -z "$SERIAL" ]]; then
   echo "[carthingy] No adb device. Plug in Car Thing." >&2
+  exit 1
+fi
+
+if [[ ! -x "$NODE_BIN" ]]; then
+  echo "[carthingy] node not found at $NODE_BIN. Set CARTHINGY_NODE in carthingy.conf" >&2
   exit 1
 fi
 
@@ -73,13 +79,13 @@ env \
   CLAUDE_PROJECTS_DIR="${CLAUDE_PROJECTS_DIR:-}" \
   CARTHINGY_TZ="${CARTHINGY_TZ:-}" \
   RADAR_AIRPORTS="${RADAR_AIRPORTS:-}" \
-  node "$REPO_ROOT/host/server.mjs" &
+  "$NODE_BIN" "$REPO_ROOT/host/server.mjs" &
 SERVER_PID=$!
 
 env \
   CAR_THING_ADB="$ADB_BIN" \
   CAR_THING_SERIAL="$SERIAL" \
-  node "$REPO_ROOT/host/rotary-bridge.mjs" &
+  "$NODE_BIN" "$REPO_ROOT/host/rotary-bridge.mjs" &
 ROTARY_PID=$!
 
 cleanup() {

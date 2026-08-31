@@ -12,6 +12,7 @@ LOG_FILE="$REPO_ROOT/carthingy.log"
 carthingy_load_config "$REPO_ROOT"
 
 ADB_BIN="${CAR_THING_ADB:-$(command -v adb || true)}"
+NODE_BIN="${CARTHINGY_NODE:-$(command -v node || echo /opt/homebrew/bin/node)}"
 PORT="${CARTHINGY_PORT:-8787}"
 
 mkdir -p "$RUN_DIR"
@@ -49,15 +50,16 @@ start_host() {
 
   carthingy_ensure_kiosk "$REPO_ROOT"
 
-  local node_dir
-  node_dir="$(carthingy_node_dir || true)"
-  local path_prefix=""
-  if [[ -n "$node_dir" ]]; then
-    path_prefix="${node_dir}:"
+  if [[ ! -x "$NODE_BIN" ]]; then
+    carthingy_log "node not found at $NODE_BIN. Set CARTHINGY_NODE in carthingy.conf"
+    return 1
   fi
 
+  local node_dir
+  node_dir="$(dirname "$NODE_BIN")"
+
   nohup env \
-    PATH="${path_prefix}/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin" \
+    PATH="${node_dir}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin" \
     CARTHINGY_PORT="$PORT" \
     OFFICE_LAT="$OFFICE_LAT" \
     OFFICE_LON="$OFFICE_LON" \
@@ -77,14 +79,14 @@ start_host() {
     EXCLUDE_DEST="${EXCLUDE_DEST:-}" \
     CAR_THING_ADB="$ADB_BIN" \
     CAR_THING_SERIAL="$serial" \
-    node "$REPO_ROOT/host/server.mjs" >>"$LOG_FILE" 2>&1 &
+    "$NODE_BIN" "$REPO_ROOT/host/server.mjs" >>"$LOG_FILE" 2>&1 &
   echo $! >"$PID_FILE"
 
   nohup env \
-    PATH="${path_prefix}/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin" \
+    PATH="${node_dir}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin" \
     CAR_THING_ADB="$ADB_BIN" \
     CAR_THING_SERIAL="$serial" \
-    node "$REPO_ROOT/host/rotary-bridge.mjs" >>"$LOG_FILE" 2>&1 &
+    "$NODE_BIN" "$REPO_ROOT/host/rotary-bridge.mjs" >>"$LOG_FILE" 2>&1 &
   echo $! >"$RUN_DIR/rotary.pid"
 
   carthingy_log "host started (pid $(cat "$PID_FILE"), device $serial, port $PORT)"

@@ -10,10 +10,15 @@ bad() { printf '  ✗ %s\n' "$*"; }
 echo "Car Thingy doctor"
 echo
 
-if command -v node >/dev/null 2>&1; then
-  ok "Node $(node --version)"
+# shellcheck source=lib.sh
+source "$REPO_ROOT/scripts/lib.sh"
+carthingy_load_config "$REPO_ROOT"
+
+NODE_BIN="$(carthingy_node_bin || true)"
+if [[ -n "$NODE_BIN" && -x "$NODE_BIN" ]]; then
+  ok "Node $("$NODE_BIN" --version) ($NODE_BIN)"
 else
-  bad "Node.js not found"
+  bad "Node.js not found. Set CARTHINGY_NODE in carthingy.conf"
 fi
 
 if command -v adb >/dev/null 2>&1; then
