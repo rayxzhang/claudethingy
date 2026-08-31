@@ -6,7 +6,7 @@
   var HOME_PAGES = ["hours", "days", "weeks", "limits"];
   var INPUT_ARM_MS = 160;
   var TOAST_MS = 1600;
-  var HOLD_MS = 4000;
+  var HOLD_MS = 1500;
   var HYSTERESIS = 1.20;
   var SLOT_COUNT = 1;
 
@@ -447,16 +447,26 @@
     openSeatedPlane();
   }
 
+  function dismissAllAlerts() {
+    var list = state.snapshotAircraft || [];
+    var i;
+    for (i = 0; i < list.length; i++) {
+      if (list[i] && list[i].hex) mutedHex[list[i].hex] = true;
+    }
+    slotState = emptySlots();
+    state.focusedAlertHex = null;
+    ingestAircraft(state.snapshotAircraft);
+    paintHome();
+  }
+
   function goBack() {
     if (state.screen === "detail") {
       setScreen("home");
       paintHome();
       return;
     }
-    if (state.screen === "home" && state.focusedAlertHex) {
-      mutedHex[state.focusedAlertHex] = true;
-      ingestAircraft(state.snapshotAircraft);
-      paintHome();
+    if (state.screen === "home" && seatedHexes().length) {
+      dismissAllAlerts();
     }
   }
 
