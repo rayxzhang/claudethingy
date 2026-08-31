@@ -75,6 +75,56 @@
     return sign + out;
   }
 
+  function formatDollars(n) {
+    var cents = Math.round((+n || 0) * 100);
+    var sign = cents < 0 ? "-" : "";
+    cents = Math.abs(cents);
+    var whole = Math.floor(cents / 100);
+    var frac = cents % 100;
+    return sign + "$" + formatGrouped(whole) + "." + (frac < 10 ? "0" : "") + frac;
+  }
+
+  var tickerCounts = {};
+  var tickerRaf = {};
+
+  function rollTo(el, key, to, format) {
+    if (!el) return;
+    var from = tickerCounts[key] === undefined ? 0 : tickerCounts[key];
+    tickerCounts[key] = to;
+    if (from === to) {
+      if (!tickerRaf[key]) el.textContent = format(to);
+      return;
+    }
+    var span = Math.abs(to - from);
+    var dur = Math.min(2200, Math.max(700, span < 50 ? span * 90 : 1400));
+    var start = window.performance && performance.now ? performance.now() : Date.now();
+    if (tickerRaf[key]) cancelAnimationFrame(tickerRaf[key]);
+    function step(now) {
+      var p = Math.min(1, Math.max(0, (now - start) / dur));
+      var v = from + (to - from) * (1 - Math.pow(1 - p, 3));
+      el.textContent = format(p === 1 ? to : v);
+      if (p < 1) tickerRaf[key] = requestAnimationFrame(step);
+      else tickerRaf[key] = 0;
+    }
+    tickerRaf[key] = requestAnimationFrame(step);
+  }
+
+  function paintLifetimeTicker() {
+    var hist = state.usageHistory;
+    var tokEl = byId("life-tokens");
+    var costEl = byId("life-cost");
+    if (!tokEl || !costEl) return;
+    if (!hist) {
+      if (tickerCounts.tokens === undefined) {
+        tokEl.textContent = "—";
+        costEl.textContent = "—";
+      }
+      return;
+    }
+    rollTo(tokEl, "tokens", hist.totalTokens || 0, formatGrouped);
+    rollTo(costEl, "cost", hist.totalCost || 0, formatDollars);
+  }
+
   function formatNm(nm) {
     if (nm == null || !isFinite(nm)) return "—";
     return String(Math.round(nm * 10) / 10);
@@ -684,6 +734,7 @@
   function paintHome() {
     paintBannerSlot(0);
     paintUsageCards();
+    paintLifetimeTicker();
     if (state.homePage !== "limits" && !state.usageHistory) {
       var viz = byId("usage-viz");
       if (viz && !viz.querySelector(".stage")) {
@@ -826,6 +877,7 @@
     fetchJson("/api/usage-history", function (payload) {
       if (!payload || !payload.today) return;
       state.usageHistory = payload;
+      paintLifetimeTicker();
       if (window.UsageViz) UsageViz.mount(byId("usage-viz"), payload);
     });
   }

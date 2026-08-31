@@ -267,13 +267,12 @@ export async function getUsageHistory() {
   let totalTokens = 0;
   let totalCost = 0;
   let trackedDays = 0;
-  for (let i = 0; i < calendar.length; i++) {
-    const d = calendar[i];
+  bucket.days.forEach((d) => {
     const tok = (d.main || 0) + (d.sub || 0);
     totalTokens += tok;
     totalCost += d.cost || 0;
     if (tok > 0 || (d.cost || 0) > 0) trackedDays += 1;
-  }
+  });
 
   return {
     today,

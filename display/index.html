@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=800, height=480, initial-scale=1">
   <meta http-equiv="Cache-Control" content="no-store">
   <title>claudethingy</title>
-  <link rel="stylesheet" href="style.css?v=14">
+  <link rel="stylesheet" href="style.css?v=15">
 </head>
 <body>
   <div id="toast" class="toast"></div>
@@ -34,20 +34,29 @@
       <div class="home-stage">
       <div id="usage-viz" class="usage-viz"></div>
       <div class="usage-grid">
-        <article class="usage-card" id="session-card">
-          <div class="usage-label">5 hour</div>
-          <div class="usage-num">
-            <span id="session-percent">--</span><span class="usage-suffix">%</span>
+        <div class="usage-stack">
+          <article class="usage-card" id="session-card">
+            <div class="usage-label">5 hour</div>
+            <div class="usage-num">
+              <span id="session-percent">--</span><span class="usage-suffix">%</span>
+            </div>
+            <div class="bar-track"><div id="session-bar" class="bar-fill"></div></div>
+          </article>
+          <article class="usage-card" id="weekly-card">
+            <div class="usage-label">Weekly</div>
+            <div class="usage-num">
+              <span id="weekly-percent">--</span><span class="usage-suffix">%</span>
+            </div>
+            <div class="bar-track"><div id="weekly-bar" class="bar-fill"></div></div>
+            <div id="weekly-reset" class="usage-reset"></div>
+          </article>
+        </div>
+        <article class="usage-card ticker-card" id="ticker-card">
+          <div class="usage-label">Lifetime</div>
+          <div class="usage-num ticker-num">
+            <span id="life-tokens">—</span>
           </div>
-          <div class="bar-track"><div id="session-bar" class="bar-fill"></div></div>
-        </article>
-        <article class="usage-card" id="weekly-card">
-          <div class="usage-label">Weekly</div>
-          <div class="usage-num">
-            <span id="weekly-percent">--</span><span class="usage-suffix">%</span>
-          </div>
-          <div class="bar-track"><div id="weekly-bar" class="bar-fill"></div></div>
-          <div id="weekly-reset" class="usage-reset"></div>
+          <div id="life-cost" class="ticker-cost">—</div>
         </article>
       </div>
       </div>
@@ -91,8 +100,8 @@
       <div id="hint" class="hint">Presets 1-4 open apps</div>
     </footer>
   </main>
-  <script src="usage-viz.js?v=14"></script>
-  <script src="radar.js?v=14"></script>
-  <script src="app.js?v=14"></script>
+  <script src="usage-viz.js?v=15"></script>
+  <script src="radar.js?v=15"></script>
+  <script src="app.js?v=15"></script>
 </body>
 </html>

@@ -153,8 +153,8 @@ html, body {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   -webkit-transform: translateY(-6px);
   transform: translateY(-6px);
-  -webkit-transition: opacity 0.15s ease, -webkit-transform 0.15s ease;
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  -webkit-transition: opacity 0.08s ease, -webkit-transform 0.08s ease;
+  transition: opacity 0.08s ease, transform 0.08s ease;
 }
 
 .alert-banner.is-open {
@@ -415,6 +415,30 @@ html, body {
   min-height: 0;
 }
 
+.usage-stack {
+  -webkit-flex: 1;
+  flex: 1;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-flex-direction: column;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  margin-right: 12px;
+}
+
+.usage-stack .usage-card {
+  -webkit-flex: 1;
+  flex: 1;
+  margin-right: 0;
+  margin-bottom: 12px;
+  padding: 16px 18px 14px;
+}
+
+.usage-stack .usage-card:last-child {
+  margin-bottom: 0;
+}
+
 .usage-card {
   -webkit-flex: 1;
   flex: 1;
@@ -423,10 +447,55 @@ html, body {
   padding: 22px 24px 20px;
   margin-right: 12px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  min-width: 0;
+  min-height: 0;
 }
 
 .usage-card:last-child {
   margin-right: 0;
+}
+
+.ticker-card {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-flex-direction: column;
+  flex-direction: column;
+  -webkit-justify-content: center;
+  justify-content: center;
+  padding: 22px 24px 20px;
+}
+
+.ticker-num {
+  margin-bottom: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.ticker-cost {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--secondary);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-feature-settings: "tnum";
+  font-feature-settings: "tnum";
+  letter-spacing: -0.02em;
+}
+
+.usage-stack .usage-num {
+  margin-bottom: 12px;
+}
+
+.usage-stack .usage-num span:first-child {
+  font-size: 56px;
+}
+
+.usage-stack .usage-suffix {
+  font-size: 20px;
+  margin-bottom: 6px;
+}
+
+.usage-stack .bar-track {
+  margin-bottom: 8px;
 }
 
 .usage-label {
@@ -452,6 +521,15 @@ html, body {
   font-variant-numeric: tabular-nums;
   -webkit-font-feature-settings: "tnum";
   font-feature-settings: "tnum";
+}
+
+.ticker-num {
+  margin-bottom: 8px;
+}
+
+.ticker-num span:first-child {
+  font-size: 48px;
+  color: var(--blue);
 }
 
 .usage-suffix {
