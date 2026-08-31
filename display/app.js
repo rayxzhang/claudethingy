@@ -330,10 +330,9 @@
   }
 
   function followFocus() {
-    var a = slotState.hex[0];
-    var b = slotState.hex[1];
-    if (state.focusedAlertHex === a || state.focusedAlertHex === b) return;
-    state.focusedAlertHex = a || b || null;
+    var seated = seatedHexes();
+    if (state.focusedAlertHex && seated.indexOf(state.focusedAlertHex) !== -1) return;
+    state.focusedAlertHex = seated[0] || null;
   }
 
   function ingestAircraft(planes) {
@@ -414,11 +413,28 @@
     applyHomePage(next);
   }
 
+  function enterPlaneView() {
+    var list = state.snapshotAircraft || [];
+    var plane = state.focusedAlertHex ? findPlane(state.focusedAlertHex) : null;
+    if (!plane && list.length) plane = list[0];
+    state.detailHex = plane ? plane.hex : null;
+    state.detailAircraft = plane || null;
+    if (plane) state.focusedAlertHex = plane.hex;
+    setScreen("detail");
+    paintDetail();
+  }
+
   function openSeatedPlane() {
     var hex = state.focusedAlertHex || slotState.hex[0];
-    if (!hex) return;
+    if (!hex) {
+      enterPlaneView();
+      return;
+    }
     var plane = findPlane(hex);
-    if (!plane) return;
+    if (!plane) {
+      enterPlaneView();
+      return;
+    }
     state.focusedAlertHex = hex;
     state.detailHex = plane.hex;
     state.detailAircraft = plane;
@@ -446,6 +462,10 @@
 
   function moveFocus(delta) {
     if (state.screen === "home") {
+      if (state.homePage === "hours" && delta < 0) {
+        enterPlaneView();
+        return;
+      }
       var hexes = seatedHexes();
       var n = hexes.length;
       if (n <= 1) {
@@ -466,13 +486,21 @@
       return;
     }
     if (state.screen === "detail") {
-      cycleDetailAircraft(delta);
+      if (delta > 0) {
+        setScreen("home");
+        paintHome();
+        return;
+      }
+      cycleDetailAircraft(-1);
     }
   }
 
   function cycleDetailAircraft(delta) {
     var list = state.snapshotAircraft || [];
-    if (list.length < 2) return;
+    if (!list.length) {
+      paintDetail();
+      return;
+    }
     var hex = state.detailHex;
     var idx = 0;
     var i;
@@ -490,9 +518,7 @@
     if (!plane) return;
     state.detailHex = plane.hex;
     state.detailAircraft = plane;
-    if (seatedHexes().indexOf(plane.hex) !== -1) {
-      state.focusedAlertHex = plane.hex;
-    }
+    state.focusedAlertHex = plane.hex;
     paintDetail();
   }
 
@@ -529,11 +555,16 @@
 
   function paintHint() {
     if (state.screen === "detail") {
-      byId("hint").textContent = "Back dismisses";
+      var n = (state.snapshotAircraft || []).length;
+      if (n > 1) byId("hint").textContent = "Left for more aircraft · Right for usage";
+      else if (n === 1) byId("hint").textContent = "Right for usage · Back dismisses";
+      else byId("hint").textContent = "No aircraft in view · Right for usage";
       return;
     }
-    if (seatedHexes().length) {
-      byId("hint").textContent = "Click to open · Back to dismiss · Turn for usage";
+    if (state.homePage === "hours") {
+      byId("hint").textContent = seatedHexes().length
+        ? "Click to open · Left for aircraft · Turn for usage"
+        : "Left for aircraft · Turn for Today, 7 days, 12 weeks, limits";
       return;
     }
     if (state.homePage === "limits") {
@@ -564,7 +595,7 @@
       return;
     }
     cls = "alert-banner is-open";
-    if (hex === state.focusedAlertHex) cls += " is-focus";
+    if (hex === state.focusedAlertHex || SLOT_COUNT === 1) cls += " is-focus";
     if (isEmergency(plane)) cls += " is-emer";
     el.className = cls;
   }
@@ -692,8 +723,8 @@
   function paintDetail() {
     var plane = state.detailAircraft;
     byId("detail-callsign").textContent = plane ? plane.callsign : "—";
-    byId("detail-type").textContent = plane ? formatKicker(plane) : "No aircraft selected";
-    byId("detail-route").textContent = plane ? formatDetailRoute(plane.route) : "Route pending";
+    byId("detail-type").textContent = plane ? formatKicker(plane) : "No aircraft in view";
+    byId("detail-route").textContent = plane ? formatDetailRoute(plane.route) : "";
     byId("detail-alt").textContent = plane ? formatDetailAlt(plane.altFt) : "—";
     byId("detail-alt-mcp").textContent = plane ? formatMcp(plane.altFt, plane.navAltFt) : "";
     byId("detail-speed").textContent = plane && plane.gsKts != null ? plane.gsKts + " kt" : "—";
