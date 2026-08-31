@@ -1,3 +1,5 @@
+import { compareVisibility, createObserver, scoreSighting } from "./visibility.mjs";
+
 const ADSB_BASE = "https://api.adsb.lol/v2/point";
 const ROUTE_URL = "https://api.adsb.lol/api/0/routeset";
 const FETCH_HEADERS = {
@@ -146,51 +148,60 @@ function isInView(ac) {
   return distanceNm(ac) <= OFFICE.radiusNm;
 }
 
-function etaMinutes(distNm, gsKts) {
-  if (!distNm || !gsKts || gsKts <= 0) return null;
-  return Math.round((distNm / gsKts) * 60);
-}
-
-function viewScore(ac) {
-  return 1000 - distanceNm(ac) * 40;
-}
-
-function normalizeAircraft(raw, route) {
-  const callsign = trimCallsign(raw.flight);
-  const dist = typeof raw.dst === "number" ? raw.dst : null;
-  const gs = typeof raw.gs === "number" ? raw.gs : null;
-  const alt = raw.alt_baro === "ground" ? 0 : raw.alt_baro;
-  let bearingDeg = typeof raw.dir === "number" ? Math.round(raw.dir) : null;
+function toSighting(ac) {
+  const dist = distanceNm(ac);
+  let bearingDeg = typeof ac.dir === "number" ? Math.round(ac.dir) : null;
   if (
     bearingDeg == null &&
     OFFICE.lat != null &&
     OFFICE.lon != null &&
-    typeof raw.lat === "number" &&
-    typeof raw.lon === "number"
+    typeof ac.lat === "number" &&
+    typeof ac.lon === "number"
   ) {
-    bearingDeg = Math.round(bearingFrom(OFFICE.lat, OFFICE.lon, raw.lat, raw.lon));
+    bearingDeg = Math.round(bearingFrom(OFFICE.lat, OFFICE.lon, ac.lat, ac.lon));
   }
-
+  const alt = ac.alt_baro === "ground" ? 0 : ac.alt_baro;
+  const emergency = ac.emergency && ac.emergency !== "none" ? String(ac.emergency) : "";
   return {
-    hex: raw.hex ?? "",
+    hex: ac.hex ?? "",
+    lat: ac.lat,
+    lon: ac.lon,
+    altFt: typeof alt === "number" ? Math.round(alt) : 0,
+    gsKts: typeof ac.gs === "number" ? ac.gs : null,
+    trackDeg: typeof ac.track === "number" ? ac.track : null,
+    categoryCode: typeof ac.category === "string" ? ac.category.toUpperCase() : "",
+    typeCode: typeof ac.t === "string" ? ac.t : "",
+    distanceNm: Number.isFinite(dist) ? dist : 0,
+    bearingDeg,
+    squawk: ac.squawk != null ? String(ac.squawk) : "",
+    emergency,
+  };
+}
+
+function normalizeAircraft(raw, sighting, route, vis) {
+  const callsign = trimCallsign(raw.flight);
+  const alt = raw.alt_baro === "ground" ? 0 : raw.alt_baro;
+  return {
+    hex: sighting.hex,
     callsign: callsign || raw.r || raw.hex?.toUpperCase() || "Unknown",
     registration: raw.r ?? "",
-    typeCode: raw.t ?? "",
+    typeCode: sighting.typeCode,
     typeName: typeLabel(raw.t),
     category: categoryLabel(raw.category),
     altFt: typeof alt === "number" ? Math.round(alt) : null,
-    gsKts: gs != null ? Math.round(gs) : null,
-    trackDeg: typeof raw.track === "number" ? Math.round(raw.track) : null,
+    gsKts: sighting.gsKts != null ? Math.round(sighting.gsKts) : null,
+    trackDeg: typeof sighting.trackDeg === "number" ? Math.round(sighting.trackDeg) : null,
     vRateFpm: typeof raw.baro_rate === "number" ? Math.round(raw.baro_rate) : null,
-    squawk: raw.squawk ?? "",
-    distanceNm: dist != null ? Math.round(dist * 10) / 10 : null,
-    bearingDeg,
-    etaMin: etaMinutes(dist, gs),
+    squawk: sighting.squawk,
+    distanceNm: Number.isFinite(sighting.distanceNm)
+      ? Math.round(sighting.distanceNm * 10) / 10
+      : null,
+    bearingDeg: sighting.bearingDeg,
     navAltFt: typeof raw.nav_altitude_mcp === "number" ? Math.round(raw.nav_altitude_mcp) : null,
     navHeadingDeg: typeof raw.nav_heading === "number" ? Math.round(raw.nav_heading) : null,
-    emergency: raw.emergency && raw.emergency !== "none" ? raw.emergency : "",
+    emergency: sighting.emergency,
     route: route ?? null,
-    score: viewScore(raw),
+    score: vis.score,
   };
 }
 
@@ -287,21 +298,27 @@ export async function getFlightsSnapshot(force = false) {
 
   try {
     const rawList = await fetchPoint();
+    const observer = createObserver(OFFICE);
     const inView = rawList.filter(isInView);
-    inView.sort((a, b) => viewScore(b) - viewScore(a));
-
-    const top = inView.slice(0, 16);
+    const ranked = [];
+    for (const ac of inView) {
+      const sighting = toSighting(ac);
+      if (!sighting.hex) continue;
+      ranked.push({ ac, sighting, vis: scoreSighting(sighting, observer) });
+    }
+    ranked.sort((a, b) => compareVisibility(a.vis, b.vis));
+    const top = ranked.slice(0, 16);
     await fetchRoutes(
-      top.map((ac) => ({
+      top.map(({ ac }) => ({
         callsign: trimCallsign(ac.flight) || ac.r,
         lat: ac.lat,
         lon: ac.lon,
       })),
     );
 
-    const aircraft = top.map((ac) => {
+    const aircraft = top.map(({ ac, sighting, vis }) => {
       const callsign = trimCallsign(ac.flight) || ac.r || ac.hex?.toUpperCase();
-      return normalizeAircraft(ac, routeForCallsign(callsign));
+      return normalizeAircraft(ac, sighting, routeForCallsign(callsign), vis);
     });
 
     cache = {
