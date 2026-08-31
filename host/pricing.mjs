@@ -10,7 +10,7 @@ const THRESHOLD_KEY = /^input_cost_per_token_above_([0-9]+)(k?)_tokens$/;
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FALLBACK_PATH = path.join(__dirname, "pricing-fallback.json");
-const CACHE_PATH = path.join(__dirname, "..", ".carthingy", "litellm-prices.json");
+const CACHE_PATH = path.join(__dirname, "..", ".claudethingy", "litellm-prices.json");
 
 let catalog = {
   byPattern: new Map(),

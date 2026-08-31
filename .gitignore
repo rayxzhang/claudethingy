@@ -1,5 +1,7 @@
 node_modules/
+claudethingy.conf
 carthingy.conf
+.claudethingy/
 .carthingy/
 .flash/
 .DS_Store

@@ -2,15 +2,14 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PORT="${CARTHINGY_PORT:-8787}"
-CONFIG="$REPO_ROOT/carthingy.conf"
-APP_URL="file:///usr/share/carthingy/index.html"
-MARKER="carthingy-kiosk"
+# shellcheck source=lib.sh
+source "$REPO_ROOT/scripts/lib.sh"
+carthingy_load_config "$REPO_ROOT"
 
-if [[ -f "$CONFIG" ]]; then
-  # shellcheck disable=SC1090
-  source "$CONFIG"
-fi
+PORT="${CARTHINGY_PORT:-8787}"
+APP_DIR="/usr/share/claudethingy"
+APP_URL="file://${APP_DIR}/index.html"
+MARKER="claudethingy-kiosk"
 
 ADB_BIN="${CAR_THING_ADB:-$(command -v adb)}"
 SERIAL="${CAR_THING_SERIAL:-}"
@@ -36,7 +35,7 @@ adb() {
 }
 
 log "device: $SERIAL"
-log "deploying dashboard to /usr/share/carthingy"
+log "deploying dashboard to $APP_DIR"
 
 adb shell "mount -o remount,rw /" >/dev/null
 
@@ -44,11 +43,12 @@ if ! adb shell "test -f /etc/supervisord.conf.stock"; then
   adb shell "cp -n /etc/supervisord.conf /etc/supervisord.conf.stock" || true
 fi
 
-adb shell "mkdir -p /usr/share/carthingy" >/dev/null
-adb push "$REPO_ROOT/display/." /usr/share/carthingy/ >/dev/null
+adb shell "mkdir -p $APP_DIR" >/dev/null
+adb push "$REPO_ROOT/display/." "$APP_DIR/" >/dev/null
 
 log "pointing chromium at $APP_URL and disabling Spotify UI"
 
+adb shell "sed -i 's| # carthingy-kiosk||g' /etc/supervisord.conf"
 adb shell "sed -i 's| # ${MARKER}||g' /etc/supervisord.conf"
 adb shell "sed -i 's|--app=[^ ]*|--app=${APP_URL} # ${MARKER}|g' /etc/supervisord.conf"
 adb shell "sed -i '/\\[program:superbird\\]/,/^\\[/ s/^autostart=true/autostart=false/' /etc/supervisord.conf"

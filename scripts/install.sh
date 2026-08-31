@@ -8,7 +8,7 @@ source "$REPO_ROOT/scripts/lib.sh"
 log() { carthingy_log "$*"; }
 fail() { carthingy_log "ERROR: $*"; exit 1; }
 
-log "Installing Car Thingy from $REPO_ROOT"
+log "Installing claudethingy from $REPO_ROOT"
 
 if ! command -v node >/dev/null 2>&1; then
   fail "Node.js 20+ required. Install: brew install node"
@@ -49,9 +49,9 @@ log ""
 log "Daily use:"
 log "  Plug in Car Thing → host starts automatically"
 log "  Preview: http://127.0.0.1:8787/"
-log "  Logs: $REPO_ROOT/carthingy.log"
+log "  Logs: $REPO_ROOT/claudethingy.log"
 log ""
 log "Manual control:"
 log "  ./scripts/start.sh              # foreground (debug)"
-log "  ./scripts/carthingy-host.sh status"
+log "  ./scripts/claudethingy-host.sh status"
 log "  ./scripts/uninstall-autostart.sh"

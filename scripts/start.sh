@@ -25,17 +25,17 @@ if system_profiler SPUSBDataType 2>/dev/null | grep -q "GX-CHIP"; then
 fi
 
 if [[ -z "$ADB_BIN" ]]; then
-  echo "[carthingy] adb not found. Run: ./scripts/install.sh" >&2
+  echo "[claudethingy] adb not found. Run: ./scripts/install.sh" >&2
   exit 1
 fi
 
 if [[ -z "$SERIAL" ]]; then
-  echo "[carthingy] No adb device. Plug in Car Thing." >&2
+  echo "[claudethingy] No adb device. Plug in Car Thing." >&2
   exit 1
 fi
 
 if [[ ! -x "$NODE_BIN" ]]; then
-  echo "[carthingy] node not found at $NODE_BIN. Set CARTHINGY_NODE in carthingy.conf" >&2
+  echo "[claudethingy] node not found at $NODE_BIN. Set CARTHINGY_NODE in claudethingy.conf" >&2
   exit 1
 fi
 

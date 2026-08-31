@@ -4,7 +4,7 @@ const ADSB_BASE = "https://api.adsb.lol/v2/point";
 const ROUTE_URL = "https://api.adsb.lol/api/0/routeset";
 const FETCH_HEADERS = {
   Accept: "application/json",
-  "User-Agent": "carthingy/1.0 (local dashboard)",
+  "User-Agent": "claudethingy/1.0 (local dashboard)",
 };
 const REFRESH_MS = Number(process.env.CARTHINGY_FLIGHTS_REFRESH_MS ?? 15_000);
 const ROUTE_TTL_MS = 6 * 60 * 60 * 1000;
@@ -207,7 +207,7 @@ function normalizeAircraft(raw, sighting, route, vis) {
 
 async function fetchPoint() {
   if (OFFICE.lat == null || OFFICE.lon == null) {
-    throw new Error("Set OFFICE_LAT and OFFICE_LON in carthingy.conf");
+    throw new Error("Set OFFICE_LAT and OFFICE_LON in claudethingy.conf");
   }
   const url = `${ADSB_BASE}/${OFFICE.lat}/${OFFICE.lon}/${OFFICE.radiusNm}`;
   const response = await fetch(url, {

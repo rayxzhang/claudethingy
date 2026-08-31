@@ -1,4 +1,4 @@
-# Car Thingy
+# claudethingy
 
 Final-approach flight radar and Claude usage limits on a Spotify Car Thing.
 
@@ -7,8 +7,8 @@ Clone on any Mac, run install once, plug in the Car Thing, and it runs.
 ## New Mac (work laptop, etc.)
 
 ```bash
-git clone https://github.com/YOUR_USER/carthingy.git
-cd carthingy
+git clone https://github.com/rayxzhang/claudethingy.git
+cd claudethingy
 ./scripts/install.sh
 claude    # sign in once on this Mac
 ```
@@ -17,7 +17,7 @@ Plug in the Car Thing with a **data** USB-C cable. The host starts automatically
 
 Preview in a browser: http://127.0.0.1:8787/
 
-Logs: `carthingy.log` in the repo root.
+Logs: `claudethingy.log` in the repo root.
 
 ## What lives where
 
@@ -27,18 +27,18 @@ Logs: `carthingy.log` in the repo root.
 | macOS Keychain `Claude Code-credentials` | Claude login on macOS (Claude Code often never writes the json file) |
 | `~/.claude/.credentials.json` | Claude login on Linux / older installs |
 | Car Thing storage | ThingLabs firmware + dashboard UI (survives unplug) |
-| `carthingy.conf` | adb path, office coordinates, port (auto-created, gitignored) |
+| `claudethingy.conf` | adb path, office coordinates, port (auto-created, gitignored). `carthingy.conf` still works. |
 
 The Car Thing only needs flashing **once** (see below). After that, any Mac only runs `./scripts/install.sh`.
 
 ## Manual controls
 
 ```bash
-./scripts/start.sh                 # foreground mode (debugging)
-./scripts/carthingy-host.sh status # is the background host up?
-./scripts/apply-kiosk.sh           # if Welcome screen comes back
-./scripts/uninstall-autostart.sh   # disable plug-and-play autostart
-./scripts/doctor.sh                # check prerequisites
+./scripts/start.sh                    # foreground mode (debugging)
+./scripts/claudethingy-host.sh status # is the background host up?
+./scripts/apply-kiosk.sh              # if Welcome screen comes back
+./scripts/uninstall-autostart.sh      # disable plug-and-play autostart
+./scripts/doctor.sh                   # check prerequisites
 ```
 
 ## First-time firmware (once per Car Thing)
@@ -65,7 +65,7 @@ Mac (this repo)                    Car Thing
 └─────────────────────┘          └─────────────────────┘
 ```
 
-1. Dashboard UI is stored on the Car Thing at `/usr/share/carthingy/`.
+1. Dashboard UI is stored on the Car Thing at `/usr/share/claudethingy/`.
 2. Your Mac fetches nearby aircraft from [adsb.lol](https://api.adsb.lol/docs) (free, no API key).
 3. Claude usage comes from Anthropic using Claude Code credentials.
 4. `adb reverse` tunnels port 8787 so the device can reach the Mac API.
@@ -73,7 +73,7 @@ Mac (this repo)                    Car Thing
 
 ## Flight radar
 
-The dashboard shows aircraft near the origin you set in `carthingy.conf`. Range is nautical miles. Optional exclude vars drop traffic that belongs to a nearby competing airport.
+The dashboard shows aircraft near the origin you set in `claudethingy.conf`. Range is nautical miles. Optional exclude vars drop traffic that belongs to a nearby competing airport.
 
 ```bash
 OFFICE_LAT=
@@ -99,7 +99,7 @@ OFFICE_LABEL="Office"
 | 3 | Slack |
 | 4 | Safari |
 
-Change them in `carthingy.conf`:
+Change them in `claudethingy.conf`:
 
 ```bash
 HOTKEY_1="Calendar|open -a Calendar"
@@ -110,7 +110,7 @@ The display is a 480×800 LVDS panel driven at **60 Hz**, rotated to 800×480.
 
 ## Configuration
 
-`carthingy.conf` (created by setup, gitignored):
+`claudethingy.conf` (created by setup, gitignored):
 
 ```bash
 CAR_THING_ADB=/opt/homebrew/bin/adb
@@ -167,7 +167,7 @@ If it keeps coming back after a firmware update, run `apply-kiosk.sh` once more.
 **Autostart not working**
 
 ```bash
-tail -f carthingy.log
+tail -f claudethingy.log
 ./scripts/install-autostart.sh   # re-register
 ```
 

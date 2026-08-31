@@ -7,7 +7,7 @@ ok() { printf '  ✓ %s\n' "$*"; }
 warn() { printf '  ! %s\n' "$*"; }
 bad() { printf '  ✗ %s\n' "$*"; }
 
-echo "Car Thingy doctor"
+echo "claudethingy doctor"
 echo
 
 # shellcheck source=lib.sh
@@ -18,7 +18,7 @@ NODE_BIN="$(carthingy_node_bin || true)"
 if [[ -n "$NODE_BIN" && -x "$NODE_BIN" ]]; then
   ok "Node $("$NODE_BIN" --version) ($NODE_BIN)"
 else
-  bad "Node.js not found. Set CARTHINGY_NODE in carthingy.conf"
+  bad "Node.js not found. Set CARTHINGY_NODE in claudethingy.conf"
 fi
 
 if command -v adb >/dev/null 2>&1; then

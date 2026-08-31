@@ -7,7 +7,7 @@ source "$REPO_ROOT/scripts/lib.sh"
 
 carthingy_load_config "$REPO_ROOT"
 ADB_BIN="${CAR_THING_ADB:-$(command -v adb || true)}"
-PID_FILE="$REPO_ROOT/.carthingy/host.pid"
+PID_FILE="$(carthingy_run_dir "$REPO_ROOT")/host.pid"
 
 if [[ -z "$ADB_BIN" ]]; then
   carthingy_log "adb not found. Install: brew install --cask android-platform-tools"
@@ -32,14 +32,14 @@ while true; do
   if [[ -n "$serial" ]]; then
     if [[ "$LAST_SERIAL" != "$serial" ]]; then
       carthingy_ensure_kiosk "$REPO_ROOT"
-      bash "$REPO_ROOT/scripts/carthingy-host.sh" start "$serial" >/dev/null 2>&1 || true
-      bash "$REPO_ROOT/scripts/carthingy-host.sh" reverse "$serial" >/dev/null 2>&1 || true
+      bash "$REPO_ROOT/scripts/claudethingy-host.sh" start "$serial" >/dev/null 2>&1 || true
+      bash "$REPO_ROOT/scripts/claudethingy-host.sh" reverse "$serial" >/dev/null 2>&1 || true
       LAST_SERIAL="$serial"
       KIOSK_TICK=0
     elif ! host_up; then
-      bash "$REPO_ROOT/scripts/carthingy-host.sh" start "$serial" >/dev/null 2>&1 || true
+      bash "$REPO_ROOT/scripts/claudethingy-host.sh" start "$serial" >/dev/null 2>&1 || true
     elif [[ "$NEEDS_REVERSE" == 1 ]]; then
-      bash "$REPO_ROOT/scripts/carthingy-host.sh" reverse "$serial" >/dev/null 2>&1 || true
+      bash "$REPO_ROOT/scripts/claudethingy-host.sh" reverse "$serial" >/dev/null 2>&1 || true
     fi
     NEEDS_REVERSE=0
     GONE_TICK=0
@@ -54,7 +54,7 @@ while true; do
     if (( GONE_TICK >= 12 )); then
       LAST_SERIAL=""
       KIOSK_TICK=0
-      bash "$REPO_ROOT/scripts/carthingy-host.sh" stop >/dev/null 2>&1 || true
+      bash "$REPO_ROOT/scripts/claudethingy-host.sh" stop >/dev/null 2>&1 || true
       GONE_TICK=0
     fi
   fi

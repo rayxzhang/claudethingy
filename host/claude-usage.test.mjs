@@ -117,7 +117,7 @@ test("keychain write updates in place under the OS username", () => {
 });
 
 test("credentialsStatus reads a CLAUDE_CONFIG_DIR file", () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "carthingy-creds-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "claudethingy-creds-"));
   const prev = process.env.CLAUDE_CONFIG_DIR;
   try {
     fs.writeFileSync(

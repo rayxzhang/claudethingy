@@ -4,13 +4,32 @@ carthingy_repo_root() {
   cd "$(dirname "${BASH_SOURCE[1]:-${BASH_SOURCE[0]}}")/.." && pwd
 }
 
+carthingy_conf_file() {
+  local repo_root="$1"
+  if [[ -f "$repo_root/claudethingy.conf" ]]; then
+    printf '%s\n' "$repo_root/claudethingy.conf"
+  elif [[ -f "$repo_root/carthingy.conf" ]]; then
+    printf '%s\n' "$repo_root/carthingy.conf"
+  else
+    printf '%s\n' "$repo_root/claudethingy.conf"
+  fi
+}
+
+carthingy_run_dir() {
+  local repo_root="$1"
+  mkdir -p "$repo_root/.claudethingy"
+  printf '%s\n' "$repo_root/.claudethingy"
+}
+
 # After sourcing conf, fill TZ from the Mac if still empty.
 carthingy_load_config() {
   local repo_root="$1"
+  local config
+  config="$(carthingy_conf_file "$repo_root")"
   export CARTHINGY_PORT="${CARTHINGY_PORT:-8787}"
-  if [[ -f "$repo_root/carthingy.conf" ]]; then
+  if [[ -f "$config" ]]; then
     # shellcheck disable=SC1090
-    source "$repo_root/carthingy.conf"
+    source "$config"
   fi
   export CARTHINGY_PORT="${CARTHINGY_PORT:-8787}"
   export CAR_THING_ADB="${CAR_THING_ADB:-$(command -v adb 2>/dev/null || true)}"
@@ -69,7 +88,8 @@ carthingy_node_dir() {
 carthingy_ensure_node_pin() {
   local repo_root="$1"
   local node_bin="${2:-}"
-  local config="$repo_root/carthingy.conf"
+  local config
+  config="$(carthingy_conf_file "$repo_root")"
   [[ -f "$config" ]] || return 0
   grep -q '^CARTHINGY_NODE=' "$config" && return 0
   [[ -n "$node_bin" ]] || node_bin="$(carthingy_node_bin || true)"
@@ -102,7 +122,7 @@ carthingy_adb_serial() {
 }
 
 carthingy_log() {
-  printf '[carthingy] %s\n' "$*"
+  printf '[claudethingy] %s\n' "$*"
 }
 
 carthingy_ensure_kiosk() {

@@ -60,7 +60,7 @@ async function dispatchArrow(wsUrl, direction) {
 
 async function main() {
   await ensureForward();
-  const child = spawn(ADB, adbArgs(["shell", "python", "/usr/share/carthingy/rotary-reader.py"]), {
+  const child = spawn(ADB, adbArgs(["shell", "python", "/usr/share/claudethingy/rotary-reader.py"]), {
     stdio: ["ignore", "pipe", "pipe"],
   });
 

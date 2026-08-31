@@ -2,10 +2,12 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=lib.sh
+source "$REPO_ROOT/scripts/lib.sh"
 PORT="${CARTHINGY_PORT:-8787}"
 
-log() { printf '[carthingy] %s\n' "$*"; }
-fail() { printf '[carthingy] ERROR: %s\n' "$*" >&2; exit 1; }
+log() { printf '[claudethingy] %s\n' "$*"; }
+fail() { printf '[claudethingy] ERROR: %s\n' "$*" >&2; exit 1; }
 
 detect_adb() {
   if [[ -n "${CAR_THING_ADB:-}" ]]; then
@@ -96,7 +98,8 @@ write_config() {
   local adb_bin="$1"
   local serial="$2"
   local node_bin="$3"
-  local config="$REPO_ROOT/carthingy.conf"
+  local config
+  config="$(carthingy_conf_file "$REPO_ROOT")"
   if [[ -f "$config" ]]; then
     log "Config exists at $config (not overwriting)"
     if ! grep -q '^CARTHINGY_NODE=' "$config"; then
@@ -134,7 +137,7 @@ EOF
 }
 
 main() {
-  log "Car Thingy setup"
+  log "claudethingy setup"
   install_adb_macos
   local node_bin
   node_bin="$(detect_node)"

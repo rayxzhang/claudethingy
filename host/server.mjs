@@ -200,7 +200,7 @@ await refreshHistoryCache(true);
 await getFlightsSnapshot(true);
 
 server.listen(PORT, "127.0.0.1", () => {
-  console.log(`carthingy listening on http://127.0.0.1:${PORT}`);
+  console.log(`claudethingy listening on http://127.0.0.1:${PORT}`);
   console.log(`Open in a browser to preview. Plug in Car Thing and run ./scripts/start.sh.`);
 });
 

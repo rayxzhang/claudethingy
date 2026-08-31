@@ -7,10 +7,11 @@ source "$REPO_ROOT/scripts/lib.sh"
 
 carthingy_load_config "$REPO_ROOT"
 
-LABEL="com.carthingy.watch"
+LABEL="com.claudethingy.watch"
+OLD_LABEL="com.carthingy.watch"
 PLIST="$HOME/Library/LaunchAgents/${LABEL}.plist"
 # launchd cannot write stdout into ~/Documents (EX_CONFIG 78).
-LAUNCHD_LOG="$HOME/Library/Logs/carthingy.log"
+LAUNCHD_LOG="$HOME/Library/Logs/claudethingy.log"
 NODE_BIN="$(carthingy_node_bin || true)"
 NODE_DIR="$(carthingy_node_dir || true)"
 PATH_VALUE="${NODE_DIR:+$NODE_DIR:}/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
@@ -23,7 +24,7 @@ carthingy_ensure_node_pin "$REPO_ROOT" "$NODE_BIN"
 
 mkdir -p "$HOME/Library/LaunchAgents"
 mkdir -p "$HOME/Library/Logs"
-mkdir -p "$REPO_ROOT/.carthingy"
+mkdir -p "$(carthingy_run_dir "$REPO_ROOT")"
 
 cat >"$PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -60,6 +61,8 @@ cat >"$PLIST" <<EOF
 </plist>
 EOF
 
+launchctl bootout "gui/$(id -u)/${OLD_LABEL}" >/dev/null 2>&1 || true
+rm -f "$HOME/Library/LaunchAgents/${OLD_LABEL}.plist"
 launchctl bootout "gui/$(id -u)/${LABEL}" >/dev/null 2>&1 || true
 
 PROTECTED=0
