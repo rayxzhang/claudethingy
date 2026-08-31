@@ -103,6 +103,9 @@ write_config() {
       printf '\nCARTHINGY_NODE=%s\n' "$node_bin" >> "$config"
       log "Pinned CARTHINGY_NODE=$node_bin"
     fi
+    if ! grep -q '^WEEKLY_RESET=' "$config"; then
+      printf '\n# Claude weekly limit reset in local time. Example: Thu 21:00\nWEEKLY_RESET=\n' >> "$config"
+    fi
     return
   fi
   cat > "$config" <<EOF
@@ -123,6 +126,9 @@ HOTKEY_1="Calendar|open -a Calendar"
 HOTKEY_2="Mail|open -a Mail"
 HOTKEY_3="Slack|open -a Slack"
 HOTKEY_4="Safari|open -a Safari"
+
+# Claude weekly limit reset in local time. Example: Thu 21:00
+WEEKLY_RESET=
 EOF
   log "Wrote $config"
 }

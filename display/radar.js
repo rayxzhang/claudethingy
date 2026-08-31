@@ -53,7 +53,11 @@
       { x: px + symbolR + 4, y: py - h / 2 },
       { x: px - symbolR - 4 - w, y: py - h / 2 },
       { x: px - w / 2, y: py - symbolR - 4 - h },
-      { x: px - w / 2, y: py + symbolR + 4 }
+      { x: px - w / 2, y: py + symbolR + 4 },
+      { x: px + symbolR + 4, y: py - symbolR - 4 - h },
+      { x: px - symbolR - 4 - w, y: py - symbolR - 4 - h },
+      { x: px + symbolR + 4, y: py + symbolR + 4 },
+      { x: px - symbolR - 4 - w, y: py + symbolR + 4 }
     ];
     var i, j, box, ok;
     for (i = 0; i < candidates.length; i++) {
@@ -70,7 +74,7 @@
       }
       if (ok) return box;
     }
-    return { x: candidates[0].x, y: candidates[0].y, w: w, h: h };
+    return null;
   }
 
   function drawDisc(radiusNm) {
@@ -220,7 +224,8 @@
       if (!text) continue;
       w = ctx.measureText(text).width;
       h = 12;
-      box = { x: pt.x - w / 2, y: pt.y + 6, w: w, h: h };
+      box = placeBox(pt.x, pt.y, w, h, 6, used);
+      if (!box) continue;
       drawLabel(text, box, MUTED, "600 10px" + FONT);
       used.push(box);
     }
@@ -251,8 +256,10 @@
         w = ctx.measureText(text).width;
         h = 13;
         box = placeBox(pt.x, pt.y, w, h, 10, used);
-        drawLabel(text, box, BLUE, "600 11px" + FONT);
-        used.push(box);
+        if (box) {
+          drawLabel(text, box, BLUE, "600 11px" + FONT);
+          used.push(box);
+        }
       }
     }
 
@@ -265,6 +272,7 @@
       w = ctx.measureText(text).width;
       h = 13;
       box = placeBox(pt.x, pt.y, w, h, 8, used);
+      if (!box) continue;
       drawLabel(text, box, INK, TAG_FONT);
       used.push(box);
     }

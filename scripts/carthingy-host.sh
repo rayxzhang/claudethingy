@@ -77,6 +77,7 @@ start_host() {
     EXCLUDE_NEAR_LAT="${EXCLUDE_NEAR_LAT:-}" \
     EXCLUDE_NEAR_LON="${EXCLUDE_NEAR_LON:-}" \
     EXCLUDE_DEST="${EXCLUDE_DEST:-}" \
+    WEEKLY_RESET="${WEEKLY_RESET:-}" \
     CAR_THING_ADB="$ADB_BIN" \
     CAR_THING_SERIAL="$serial" \
     "$NODE_BIN" "$REPO_ROOT/host/server.mjs" >>"$LOG_FILE" 2>&1 &

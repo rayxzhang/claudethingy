@@ -26,6 +26,7 @@
     focusedAlertHex: null,
     paintedSessionPct: null,
     paintedWeeklyPct: null,
+    weeklyResetLabel: "",
     officeLabel: "Office",
     hotkeys: [
       { n: 1, label: "Calendar" },
@@ -87,13 +88,6 @@
     return "0";
   }
 
-  function formatNamedRoute(route) {
-    if (!route) return "Route pending";
-    var from = route.originName || route.originCity || route.origin || "?";
-    var to = route.destinationName || route.destinationCity || route.destination || "?";
-    return from + " → " + to;
-  }
-
   function formatDetailRoute(route) {
     if (!route) return "Route pending";
     var from = route.originName || route.origin;
@@ -104,28 +98,13 @@
 
   function formatDetailAlt(ft) {
     if (ft == null) return "—";
-    return formatGrouped(ft) + " ft";
+    return formatGrouped(ft);
   }
 
-  function formatAltMetric(altFt, navAltFt) {
-    var base = formatDetailAlt(altFt);
-    if (altFt == null || navAltFt == null) return base;
-    if (Math.abs(navAltFt - altFt) < 200) return base;
-    return base + " → " + formatGrouped(navAltFt);
-  }
-
-  function formatReset(iso) {
-    if (!iso) return "Reset unknown";
-    var date = new Date(iso);
-    if (isNaN(date.getTime())) return "Reset unknown";
-    var diffMs = date.getTime() - Date.now();
-    if (diffMs <= 0) return "Resets soon";
-    var mins = Math.floor(diffMs / 60000);
-    var hours = Math.floor(mins / 60);
-    mins = mins % 60;
-    if (hours >= 24) return "Resets in " + Math.floor(hours / 24) + "d " + (hours % 24) + "h";
-    if (hours > 0) return "Resets in " + hours + "h " + mins + "m";
-    return "Resets in " + mins + "m";
+  function formatMcp(altFt, navAltFt) {
+    if (altFt == null || navAltFt == null) return "";
+    if (Math.abs(navAltFt - altFt) < 200) return "";
+    return "MCP " + formatGrouped(navAltFt);
   }
 
   function toneForPercent(pct) {
@@ -142,7 +121,10 @@
   }
 
   function bannerSub(plane) {
-    return (plane.typeName || plane.typeCode || "Aircraft") + " · " + formatNamedRoute(plane.route);
+    var type = plane.typeCode || plane.typeName || "Aircraft";
+    var route = plane.route;
+    if (!route || (!route.origin && !route.destination)) return type;
+    return type + " · " + (route.origin || "?") + " → " + (route.destination || "?");
   }
 
   function bannerRight(plane) {
@@ -579,13 +561,12 @@
     el.className = cls;
   }
 
-  function paintUsageCard(cardId, percentId, barId, resetId, bucket, paintedKey) {
+  function paintUsageCard(cardId, percentId, barId, bucket, paintedKey) {
     var card = byId(cardId);
     var pct = bucket && typeof bucket.percent === "number" ? bucket.percent : null;
     if (pct == null) {
       byId(percentId).textContent = "--";
       byId(barId).style.width = "0%";
-      byId(resetId).textContent = "No data";
       card.className = "usage-card";
       state[paintedKey] = null;
       return;
@@ -596,7 +577,6 @@
       byId(barId).style.width = Math.min(pct, 100) + "%";
       state[paintedKey] = rounded;
     }
-    byId(resetId).textContent = formatReset(bucket.resetsAt);
     var tone = toneForPercent(pct);
     card.className = tone ? "usage-card " + tone : "usage-card";
   }
@@ -620,13 +600,14 @@
 
   function paintUsageCards() {
     paintUsageCard(
-      "session-card", "session-percent", "session-bar", "session-reset",
+      "session-card", "session-percent", "session-bar",
       usageWindow(state.usage, ["session", "five_hour"]), "paintedSessionPct"
     );
     paintUsageCard(
-      "weekly-card", "weekly-percent", "weekly-bar", "weekly-reset",
+      "weekly-card", "weekly-percent", "weekly-bar",
       usageWindow(state.usage, ["weekly", "seven_day"]), "paintedWeeklyPct"
     );
+    byId("weekly-reset").textContent = state.weeklyResetLabel || "";
   }
 
   function paintHome() {
@@ -706,7 +687,8 @@
     byId("detail-callsign").textContent = plane ? plane.callsign : "—";
     byId("detail-type").textContent = plane ? formatKicker(plane) : "No aircraft selected";
     byId("detail-route").textContent = plane ? formatDetailRoute(plane.route) : "Route pending";
-    byId("detail-alt").textContent = plane ? formatAltMetric(plane.altFt, plane.navAltFt) : "—";
+    byId("detail-alt").textContent = plane ? formatDetailAlt(plane.altFt) : "—";
+    byId("detail-alt-mcp").textContent = plane ? formatMcp(plane.altFt, plane.navAltFt) : "";
     byId("detail-speed").textContent = plane && plane.gsKts != null ? plane.gsKts + " kt" : "—";
     byId("detail-distance").textContent = plane && plane.distanceNm != null ? plane.distanceNm + " nm" : "—";
     byId("detail-vrate").textContent = plane ? formatVs(plane.vRateFpm) : "—";
@@ -765,6 +747,7 @@
   function fetchUsage() {
     fetchJson("/api/usage", function (payload) {
       state.usage = payload.usage || null;
+      state.weeklyResetLabel = payload.weeklyReset || "";
       paintUsageCards();
     });
   }

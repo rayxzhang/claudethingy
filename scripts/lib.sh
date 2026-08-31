@@ -28,6 +28,7 @@ carthingy_load_config() {
   export EXCLUDE_NEAR_LAT="${EXCLUDE_NEAR_LAT:-}"
   export EXCLUDE_NEAR_LON="${EXCLUDE_NEAR_LON:-}"
   export EXCLUDE_DEST="${EXCLUDE_DEST:-}"
+  export WEEKLY_RESET="${WEEKLY_RESET:-}"
   if [[ -z "${CARTHINGY_TZ:-}" || "${CARTHINGY_TZ}" == "UTC" ]]; then
     CARTHINGY_TZ="$(carthingy_detect_tz || true)"
   fi

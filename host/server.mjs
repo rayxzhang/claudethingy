@@ -7,6 +7,7 @@ import { flightsConfig, getFlightsSnapshot } from "./flights.mjs";
 import { listHotkeys, runHotkey } from "./hotkeys.mjs";
 import { getUsageHistory } from "./usage-history.mjs";
 import { hostTimeZone, tzOffsetMinutesAt } from "./tz.mjs";
+import { weeklyResetLabel } from "./weekly-reset.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, "..", "display");
@@ -131,6 +132,7 @@ const server = http.createServer(async (req, res) => {
       ok: !snapshot.error || Boolean(snapshot.data),
       error: snapshot.error,
       usage: snapshot.data,
+      weeklyReset: weeklyResetLabel(),
       fetchedAt: snapshot.fetchedAt,
       refreshMs: REFRESH_MS,
     });

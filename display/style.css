@@ -122,16 +122,14 @@ html, body {
 }
 
 .alert-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
+  position: relative;
   z-index: 4;
   display: -webkit-flex;
   display: flex;
   -webkit-flex-direction: column;
   flex-direction: column;
-  pointer-events: none;
+  -webkit-flex-shrink: 0;
+  flex-shrink: 0;
 }
 
 .alert-banner {
@@ -189,6 +187,9 @@ html, body {
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .alert-sub {
@@ -209,6 +210,8 @@ html, body {
   font-feature-settings: "tnum";
   margin-left: 12px;
   white-space: nowrap;
+  -webkit-flex-shrink: 0;
+  flex-shrink: 0;
 }
 
 .detail-card {
@@ -234,6 +237,7 @@ html, body {
   flex: 55 1 0%;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
   padding: 16px 20px 14px;
 }
 
@@ -346,6 +350,22 @@ html, body {
   -webkit-font-feature-settings: "tnum";
   font-feature-settings: "tnum";
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.metric-extra {
+  margin-top: 1px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.metric-extra:empty {
+  display: none;
 }
 
 .home-stage {
@@ -471,6 +491,13 @@ html, body {
 .usage-reset {
   font-size: 15px;
   color: var(--secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.usage-reset:empty {
+  display: none;
 }
 
 .dock {

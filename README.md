@@ -124,6 +124,7 @@ HOTKEY_1="Calendar|open -a Calendar"
 HOTKEY_2="Mail|open -a Mail"
 HOTKEY_3="Slack|open -a Slack"
 HOTKEY_4="Safari|open -a Safari"
+WEEKLY_RESET="Thu 21:00"
 ```
 
 | Variable | Default | Purpose |
@@ -139,6 +140,7 @@ HOTKEY_4="Safari|open -a Safari"
 | `CARTHINGY_FLIGHTS_REFRESH_MS` | `15000` | Host ADS-B cache interval |
 | `CARTHINGY_REFRESH_MS` | `120000` | Claude cache refresh interval |
 | `CLAUDE_CONFIG_DIR` | `~/.claude` | Claude credentials directory |
+| `WEEKLY_RESET` | unset | Weekly limit schedule in local time, e.g. `Thu 21:00`. Shown on the weekly card instead of a countdown. |
 
 ## Troubleshooting
 
