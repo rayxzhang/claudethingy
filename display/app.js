@@ -7,11 +7,13 @@
   var INPUT_ARM_MS = 160;
   var TOAST_MS = 1600;
   var HOLD_MS = 1500;
+  var ALERT_MS = 5000;
   var HYSTERESIS = 1.20;
   var SLOT_COUNT = 1;
 
   var mutedHex = {};
   var slotState = { hex: [null, null], seatedAt: [0, 0] };
+  var alertTimer = 0;
 
   var state = {
     screen: "home",
@@ -353,6 +355,7 @@
     }
     slotState = pickLiveSlots(live, slotState, Date.now());
     followFocus();
+    armAlertTimeout();
     if (state.detailHex && incoming[state.detailHex]) {
       state.detailAircraft = incoming[state.detailHex];
     }
@@ -447,7 +450,26 @@
     openSeatedPlane();
   }
 
+  function armAlertTimeout() {
+    if (alertTimer) {
+      clearTimeout(alertTimer);
+      alertTimer = 0;
+    }
+    if (!slotState.hex[0]) return;
+    var wait = ALERT_MS - (Date.now() - (slotState.seatedAt[0] || 0));
+    if (wait < 0) wait = 0;
+    alertTimer = setTimeout(function () {
+      alertTimer = 0;
+      if (!slotState.hex[0]) return;
+      dismissAllAlerts();
+    }, wait);
+  }
+
   function dismissAllAlerts() {
+    if (alertTimer) {
+      clearTimeout(alertTimer);
+      alertTimer = 0;
+    }
     var list = state.snapshotAircraft || [];
     var i;
     for (i = 0; i < list.length; i++) {
