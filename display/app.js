@@ -109,20 +109,65 @@
     tickerRaf[key] = requestAnimationFrame(step);
   }
 
+  function nowMs() {
+    return state.hostNow ? state.hostNow + (Date.now() - state.hostSyncAt) : Date.now();
+  }
+
+  function formatRemaining(resetsAt) {
+    var end = Date.parse(resetsAt);
+    var ms;
+    var totalMin;
+    var h;
+    var m;
+    if (!Number.isFinite(end)) return "";
+    ms = end - nowMs();
+    if (ms <= 0) return "Resetting";
+    totalMin = Math.floor(ms / 60000);
+    if (totalMin < 1) return "Under 1 min";
+    h = Math.floor(totalMin / 60);
+    m = totalMin % 60;
+    if (!h) return m + "m left";
+    if (!m) return h + "h left";
+    return h + "h " + m + "m left";
+  }
+
+  function dayTokens(d) {
+    if (!d) return 0;
+    return (d.main || 0) + (d.sub || 0);
+  }
+
   function paintLifetimeTicker() {
     var hist = state.usageHistory;
+    var todayTok = byId("today-tokens");
+    var todayCost = byId("today-cost");
     var tokEl = byId("life-tokens");
     var costEl = byId("life-cost");
+    var today;
     if (!tokEl || !costEl) return;
     if (!hist) {
       if (tickerCounts.tokens === undefined) {
+        if (todayTok) todayTok.textContent = "—";
+        if (todayCost) todayCost.textContent = "—";
         tokEl.textContent = "—";
         costEl.textContent = "—";
       }
       return;
     }
+    today = hist.today;
+    if (todayTok) rollTo(todayTok, "todayTokens", dayTokens(today), formatGrouped);
+    if (todayCost) rollTo(todayCost, "todayCost", (today && today.cost) || 0, formatDollars);
     rollTo(tokEl, "tokens", hist.totalTokens || 0, formatGrouped);
     rollTo(costEl, "cost", hist.totalCost || 0, formatDollars);
+  }
+
+  function paintSessionRemaining() {
+    var el = byId("session-reset");
+    var bucket;
+    var label;
+    if (!el) return;
+    bucket = usageWindow(state.usage, ["session", "five_hour"]);
+    label = bucket && bucket.resetsAt ? formatRemaining(bucket.resetsAt) : "";
+    if (el.textContent !== label) el.textContent = label;
   }
 
   function formatNm(nm) {
@@ -729,6 +774,7 @@
       usageWindow(state.usage, ["weekly", "seven_day"]), "paintedWeeklyPct"
     );
     byId("weekly-reset").textContent = state.weeklyResetLabel || "";
+    paintSessionRemaining();
   }
 
   function paintHome() {
@@ -948,6 +994,7 @@
     var pair = formatClockPair();
     byId("clock-local").textContent = pair.localLabel;
     byId("clock-utc").textContent = pair.utcLabel;
+    paintSessionRemaining();
   }
 
   tickClock();

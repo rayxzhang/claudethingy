@@ -427,6 +427,10 @@ html, body {
   margin-right: 12px;
 }
 
+.usage-stack:last-child {
+  margin-right: 0;
+}
+
 .usage-stack .usage-card {
   -webkit-flex: 1;
   flex: 1;
@@ -460,9 +464,6 @@ html, body {
   display: flex;
   -webkit-flex-direction: column;
   flex-direction: column;
-  -webkit-justify-content: center;
-  justify-content: center;
-  padding: 22px 24px 20px;
 }
 
 .ticker-num {
@@ -528,7 +529,7 @@ html, body {
 }
 
 .ticker-num span:first-child {
-  font-size: 48px;
+  font-size: 40px;
   color: var(--blue);
 }
 
@@ -560,16 +561,8 @@ html, body {
   background: var(--orange);
 }
 
-.usage-card.warn .usage-num span:first-child {
-  color: var(--orange);
-}
-
 .usage-card.danger .bar-fill {
   background: var(--red);
-}
-
-.usage-card.danger .usage-num span:first-child {
-  color: var(--red);
 }
 
 .usage-reset {

@@ -26,6 +26,7 @@ test("legacy five_hour utilization is a 0-1 fraction", () => {
   assert.equal(u.weekly.percent, 14);
   assert.equal(u.session.id, "session");
   assert.equal(u.weekly.id, "weekly");
+  assert.equal(u.session.resetsAt, "2026-08-31T08:00:00Z");
 });
 
 test("limits[] percent is already 0-100", () => {

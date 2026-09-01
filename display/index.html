@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=800, height=480, initial-scale=1">
   <meta http-equiv="Cache-Control" content="no-store">
   <title>claudethingy</title>
-  <link rel="stylesheet" href="style.css?v=15">
+  <link rel="stylesheet" href="style.css?v=16">
 </head>
 <body>
   <div id="toast" class="toast"></div>
@@ -41,6 +41,7 @@
               <span id="session-percent">--</span><span class="usage-suffix">%</span>
             </div>
             <div class="bar-track"><div id="session-bar" class="bar-fill"></div></div>
+            <div id="session-reset" class="usage-reset"></div>
           </article>
           <article class="usage-card" id="weekly-card">
             <div class="usage-label">Weekly</div>
@@ -51,13 +52,22 @@
             <div id="weekly-reset" class="usage-reset"></div>
           </article>
         </div>
-        <article class="usage-card ticker-card" id="ticker-card">
-          <div class="usage-label">Lifetime</div>
-          <div class="usage-num ticker-num">
-            <span id="life-tokens">—</span>
-          </div>
-          <div id="life-cost" class="ticker-cost">—</div>
-        </article>
+        <div class="usage-stack">
+          <article class="usage-card ticker-card" id="today-card">
+            <div class="usage-label">Today</div>
+            <div class="usage-num ticker-num">
+              <span id="today-tokens">—</span>
+            </div>
+            <div id="today-cost" class="ticker-cost">—</div>
+          </article>
+          <article class="usage-card ticker-card" id="ticker-card">
+            <div class="usage-label">Lifetime</div>
+            <div class="usage-num ticker-num">
+              <span id="life-tokens">—</span>
+            </div>
+            <div id="life-cost" class="ticker-cost">—</div>
+          </article>
+        </div>
       </div>
       </div>
     </section>
@@ -100,8 +110,8 @@
       <div id="hint" class="hint">Presets 1-4 open apps</div>
     </footer>
   </main>
-  <script src="usage-viz.js?v=15"></script>
-  <script src="radar.js?v=15"></script>
-  <script src="app.js?v=15"></script>
+  <script src="usage-viz.js?v=16"></script>
+  <script src="radar.js?v=16"></script>
+  <script src="app.js?v=16"></script>
 </body>
 </html>
