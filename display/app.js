@@ -4,6 +4,12 @@
   var USAGE_POLL_MS = 60000;
   var USAGE_HISTORY_POLL_MS = 15000;
   var HOME_PAGES = ["limits", "hours", "days", "weeks"];
+  var HOME_TITLES = {
+    limits: "Usage",
+    hours: "Today",
+    days: "7 days",
+    weeks: "12 weeks"
+  };
   var INPUT_ARM_MS = 160;
   var TOAST_MS = 1600;
   var HOLD_MS = 1500;
@@ -84,6 +90,11 @@
     return sign + "$" + formatGrouped(whole) + "." + (frac < 10 ? "0" : "") + frac;
   }
 
+  function costLabel(amount, priced) {
+    if (!(amount > 0) && !priced) return "—";
+    return formatDollars(amount);
+  }
+
   var tickerCounts = {};
   var tickerRaf = {};
 
@@ -107,6 +118,20 @@
       else tickerRaf[key] = 0;
     }
     tickerRaf[key] = requestAnimationFrame(step);
+  }
+
+  function setCostTicker(el, key, amount, priced) {
+    if (!el) return;
+    if (costLabel(amount, priced) === "—") {
+      if (tickerRaf[key]) {
+        cancelAnimationFrame(tickerRaf[key]);
+        tickerRaf[key] = 0;
+      }
+      tickerCounts[key] = 0;
+      el.textContent = "—";
+      return;
+    }
+    rollTo(el, key, amount, formatDollars);
   }
 
   function nowMs() {
@@ -155,9 +180,9 @@
     }
     today = hist.today;
     if (todayTok) rollTo(todayTok, "todayTokens", dayTokens(today), formatGrouped);
-    if (todayCost) rollTo(todayCost, "todayCost", (today && today.cost) || 0, formatDollars);
+    if (todayCost) setCostTicker(todayCost, "todayCost", (today && today.cost) || 0, !!(today && today.priced));
     rollTo(tokEl, "tokens", hist.totalTokens || 0, formatGrouped);
-    rollTo(costEl, "cost", hist.totalCost || 0, formatDollars);
+    setCostTicker(costEl, "cost", hist.totalCost || 0, (hist.totalCost || 0) > 0);
   }
 
   function paintSessionRemaining() {
@@ -659,7 +684,37 @@
     }, TOAST_MS);
   }
 
+  function chromeFor(input) {
+    var hint;
+    if (input.screen === "detail") {
+      if (input.snapshot > 1) hint = "Left for more aircraft · Right for usage";
+      else if (input.snapshot === 1) hint = "Right for usage · Back dismisses";
+      else hint = "No aircraft in view · Right for usage";
+      return { title: "Overhead", hint: hint };
+    }
+    if (input.homePage === "limits") {
+      hint = input.seated > 0
+        ? "Click to open · Left for aircraft · Right for daily"
+        : "Left for aircraft · Right for daily";
+    } else if (input.homePage === "hours") {
+      hint = "Turn for 7 days, 12 weeks · Left for usage";
+    } else {
+      hint = "Turn for Today, 7 days, 12 weeks";
+    }
+    return { title: HOME_TITLES[input.homePage] || "Usage", hint: hint };
+  }
+
+  function chromeInput() {
+    return {
+      screen: state.screen,
+      homePage: state.homePage,
+      seated: seatedHexes().length,
+      snapshot: (state.snapshotAircraft || []).length
+    };
+  }
+
   function paintChrome() {
+    byId("screen-title").textContent = chromeFor(chromeInput()).title;
     byId("office-label").textContent = state.officeLabel;
     var bar = byId("hotkey-bar");
     while (bar.firstChild) bar.removeChild(bar.firstChild);
@@ -681,24 +736,7 @@
   }
 
   function paintHint() {
-    if (state.screen === "detail") {
-      var n = (state.snapshotAircraft || []).length;
-      if (n > 1) byId("hint").textContent = "Left for more aircraft · Right for usage";
-      else if (n === 1) byId("hint").textContent = "Right for usage · Back dismisses";
-      else byId("hint").textContent = "No aircraft in view · Right for usage";
-      return;
-    }
-    if (state.homePage === "limits") {
-      byId("hint").textContent = seatedHexes().length
-        ? "Click to open · Left for aircraft · Right for daily"
-        : "Left for aircraft · Right for daily";
-      return;
-    }
-    if (state.homePage === "hours") {
-      byId("hint").textContent = "Turn for 7 days, 12 weeks · Left for 5 hour";
-      return;
-    }
-    byId("hint").textContent = "Turn for Today, 7 days, 12 weeks";
+    byId("hint").textContent = chromeFor(chromeInput()).hint;
   }
 
   function paintBannerSlot(slot) {

@@ -533,6 +533,10 @@ html, body {
   color: var(--blue);
 }
 
+#life-tokens {
+  color: var(--text);
+}
+
 .usage-suffix {
   font-size: 24px;
   color: var(--secondary);
